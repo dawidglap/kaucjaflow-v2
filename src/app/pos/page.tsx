@@ -10,6 +10,12 @@ import {
   type EventType,
 } from '../../../lib/idb';
 
+function shortId(id: string, head = 6, tail = 4) {
+  if (!id) return '';
+  if (id.length <= head + tail + 1) return id;
+  return `${id.slice(0, head)}…${id.slice(-tail)}`;
+}
+
 export default function PosPage() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<{ email: string; role: string; shopId: string } | null>(null);
@@ -26,9 +32,7 @@ export default function PosPage() {
       setSession(j.session);
       setEvents(await allToday(j.session.shopId));
 
-      // pull all’avvio
       await pullFromServer(j.session.shopId);
-
       setLoading(false);
     })();
   }, []);
@@ -48,7 +52,6 @@ export default function PosPage() {
         }))
       );
 
-      // backfill: se sul server manca qualcosa di locale (già synced), re-invialo
       const serverIds = new Set(
         j.events.map((e: any) => String(e.client_event_id ?? e.clientEventId ?? '')).filter(Boolean)
       );
@@ -73,12 +76,13 @@ export default function PosPage() {
 
       setEvents(await allToday(shopId));
     } catch {
-      // offline o errore: ignora
+      // offline / błąd → ignoruj
     }
   }
 
   async function handleClick(type: EventType) {
     if (!session) return;
+    try { (navigator as any).vibrate?.(15); } catch {}
     await addEvent(session.shopId, type);
     setEvents(await allToday(session.shopId));
   }
@@ -100,13 +104,13 @@ export default function PosPage() {
           events: unsynced.map((e) => ({
             type: e.type,
             ts: e.ts,
-            client_event_id: e.id, // unico per shop
+            client_event_id: e.id, // unikalne w sklepie
           })),
         }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j?.ok) {
-        console.warn('[sync] errore', j);
+        console.warn('[sync] błąd', j);
         return;
       }
 
@@ -121,7 +125,7 @@ export default function PosPage() {
 
   async function handleClear() {
     if (!session) return;
-    if (confirm('Vuoi cancellare tutti gli eventi di oggi per questo shop?')) {
+    if (confirm('Usunąć wszystkie dzisiejsze zdarzenia dla tego sklepu?')) {
       await clearAll(session.shopId);
       setEvents([]);
     }
@@ -146,73 +150,152 @@ export default function PosPage() {
       window.removeEventListener('online', onOnline);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [session?.shopId]); // rilegarsi al nuovo shop
+  }, [session?.shopId]);
 
   const counts = events.reduce(
     (acc, e) => ({ ...acc, [e.type]: (acc[e.type] || 0) + 1 }),
     {} as Record<EventType, number>
   );
   const unsyncedCount = events.filter((e) => !e.synced).length;
+  const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
-  if (loading) return <main className="min-h-[100svh] grid place-items-center">Caricamento…</main>;
+  if (loading) {
+    return (
+      <main className="min-h-[100svh] bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 grid place-items-center">
+        <div className="animate-pulse text-base text-slate-400 dark:text-slate-400">Ładowanie…</div>
+      </main>
+    );
+  }
   if (!session) return null;
 
   return (
-    <main className="min-h-[100svh] p-6">
-      <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-        <div className="text-sm text-neutral-400">
-          <span className="font-medium text-neutral-200">{session.email}</span> · {session.role} ·{' '}
-          <span className="px-2 py-0.5 rounded bg-neutral-800">{session.shopId}</span>
-        </div>
+    <main className="min-h-[100svh] bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 overflow-hidden">
+      {/* Full-screen layout */}
+      <div className="min-h-[100svh] flex flex-col">
+        {/* TOP BAR — bez overflow, ID skrócone z tooltipem */}
+        <header className="px-5 py-4 flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800">
+          <div className="flex items-center gap-2 text-sm min-w-0">
+            <span
+              className="font-semibold text-slate-900 dark:text-slate-100 max-w-[26ch] truncate"
+              title={session.shopId}
+            >
+              {shortId(session.shopId, 8, 6)}
+            </span>
+            <span className="text-slate-400">•</span>
+            <span className="text-slate-600 dark:text-slate-300 max-w-[32ch] truncate" title={session.email}>
+              {session.email}
+            </span>
+          </div>
 
-        <nav className="flex items-center gap-3">
-          <span className="text-xs rounded-full px-2 py-0.5 bg-neutral-800">
-            {navigator.onLine ? (syncing ? 'Syncing…' : `Pending: ${unsyncedCount}`) : 'Offline'}
-          </span>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm text-white disabled:opacity-50"
-          >
-            {syncing ? 'Sincronizzo…' : `Sincronizza (${unsyncedCount})`}
-          </button>
-          <button
-            onClick={() => pullFromServer(session.shopId)}
-            className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-sm text-white"
-          >
-            Aggiorna
-          </button>
-          <a href="/report" className="text-sm underline text-neutral-300 hover:text-white">Report</a>
-          <a href="/history" className="text-sm underline">History</a>
-          <a href="/api/auth/logout" className="text-sm underline text-rose-300 hover:text-rose-200">Logout</a>
-        </nav>
-      </header>
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className="text-xs rounded-full px-2.5 py-1 border border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+              aria-live="polite"
+              title={online ? 'Połączono' : 'Offline'}
+            >
+              {online ? (syncing ? 'Synchronizacja…' : `Oczekuje: ${unsyncedCount}`) : 'Offline'}
+            </span>
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="rounded-xl px-4 py-2 text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            >
+              {syncing ? 'Synchronizacja…' : 'Synchronizuj'}
+            </button>
+          </div>
+        </header>
 
-      <section className="grid gap-4 md:grid-cols-3">
+        {/* MAIN — kolory wyraźne, kontrast wysokiej czytelności */}
+         <section
+        className="
+          flex-1 min-h-0                           /* permette alle card di estendersi */
+          grid grid-cols-1 md:grid-cols-3 gap-4
+          p-5 items-stretch content-stretch
+        "
+      >
+        {/* PLASTIK */}
         <button
           onClick={() => handleClick('PLASTIC')}
-          className="h-32 rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-600 text-black text-2xl font-bold active:scale-[.98] transition"
+          className="
+            group h-full rounded-3xl shadow-sm hover:shadow-md transition active:scale-[.985]
+            focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-300/50
+            bg-gradient-to-b from-amber-400 to-amber-400 text-black
+            dark:from-amber-400 dark:to-amber-600
+          "
+          aria-label="Dodaj 1 Plastik"
         >
-          PLASTIC ({counts.PLASTIC || 0})
+          <div className="h-full w-full grid place-items-center p-6">
+            <div className="text-center">
+              <div className="text-xs uppercase tracking-wide opacity-85">Dodaj</div>
+              <div className="mt-1 text-4xl md:text-7xl font-extrabold">PLASTIK</div>
+              <div className="mt-2 text-2xl opacity-90 tabular-nums">({counts.PLASTIC || 0})</div>
+            </div>
+          </div>
         </button>
-        <button
-          onClick={() => handleClick('ALU')}
-          className="h-32 rounded-2xl bg-gradient-to-br from-gray-200 to-gray-400 text-black text-2xl font-bold active:scale-[.98] transition"
-        >
-          ALU ({counts.ALU || 0})
-        </button>
+
+        {/* SZKŁO */}
         <button
           onClick={() => handleClick('SZKLO')}
-          className="h-32 rounded-2xl bg-gradient-to-br from-green-600 to-emerald-800 text-white text-2xl font-bold active:scale-[.98] transition"
+          className="
+            group h-full rounded-3xl shadow-sm hover:shadow-md transition active:scale-[.985]
+            focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-300/50
+            bg-gradient-to-b from-emerald-400 to-emerald-600 text-white
+            dark:from-emerald-600 dark:to-emerald-700
+          "
+          aria-label="Dodaj 1 Szkło"
         >
-          SZKLO ({counts.SZKLO || 0})
+          <div className="h-full w-full grid place-items-center p-6">
+            <div className="text-center">
+              <div className="text-xs uppercase tracking-wide text-white/90">Dodaj</div>
+              <div className="mt-1 text-4xl md:text-7xl font-extrabold">SZKŁO</div>
+              <div className="mt-2 text-2xl text-white/95 tabular-nums">({counts.SZKLO || 0})</div>
+            </div>
+          </div>
+        </button>
+
+        {/* ALUMINIUM */}
+        <button
+          onClick={() => handleClick('ALU')}
+          className="
+            group h-full rounded-3xl shadow-sm hover:shadow-md transition active:scale-[.985]
+            focus:outline-none focus-visible:ring-4 focus-visible:ring-zinc-300/60
+            bg-gradient-to-b from-zinc-600 to-zinc-700 text-white
+            dark:from-zinc-600 dark:to-zinc-700
+          "
+          aria-label="Dodaj 1 Aluminium"
+        >
+          <div className="h-full w-full grid place-items-center p-6">
+            <div className="text-center">
+              <div className="text-xs uppercase tracking-wide text-white/90">Dodaj</div>
+              <div className="mt-1 text-4xl md:text-7xl font-extrabold">ALUMINIUM</div>
+              <div className="mt-2 text-2xl text-white/95 tabular-nums">({counts.ALU || 0})</div>
+            </div>
+          </div>
         </button>
       </section>
 
-      <footer className="mt-10 text-sm text-neutral-500">
-        Totale oggi: {events.length} eventi
-        <button onClick={handleClear} className="ml-4 underline hover:text-red-400">Cancella tutti (shop)</button>
-      </footer>
+        {/* BOTTOM BAR */}
+        <footer className="px-5 py-4 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-lg">
+          <div className="font-semibold">
+            Dziś razem: <span className="tabular-nums">{events.length}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => pullFromServer(session.shopId)}
+              className="rounded-xl px-4 py-2 text-sm font-semibold border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 dark:text-slate-200"
+              title="Pobierz najnowsze dane z serwera"
+            >
+              Odśwież
+            </button>
+            <button
+              onClick={handleClear}
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-rose-700 hover:text-rose-800 underline underline-offset-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 dark:text-rose-300 dark:hover:text-rose-200"
+            >
+              Wyczyść dzisiaj
+            </button>
+          </div>
+        </footer>
+      </div>
     </main>
   );
 }
