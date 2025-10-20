@@ -28,6 +28,9 @@ function setSessionCookie(res: NextResponse, payload: any) {
 }
 
 export async function GET(req: Request) {
+    if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+    }
     const url = new URL(req.url);
     const email = url.searchParams.get('email')?.toLowerCase() || '';
     const role = (url.searchParams.get('role') || 'admin') as 'admin' | 'cashier';

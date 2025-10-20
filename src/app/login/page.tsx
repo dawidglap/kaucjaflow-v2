@@ -74,6 +74,33 @@ export default function LoginPage() {
               className="w-full h-11 rounded-lg bg-white text-black font-medium hover:bg-neutral-200 active:scale-[.99] transition disabled:opacity-50">
               {submitting ? 'Accesso…' : 'Log In'}
             </button>
+            
+<button
+  type="button"
+  onClick={async () => {
+    const body = { email, shopName: advanced ? shop : 'Shop 1', role };
+    const r = await fetch('/api/auth/magic/request', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (j?.ok) {
+      alert(j.delivered ? `Email inviata! (id: ${j.id || 'n/a'})` : 'Link generato: guarda la console del server.');
+    } else {
+      const msg =
+        typeof j?.error === 'string' ? j.error :
+        j?.error ? JSON.stringify(j.error) :
+        String(r.status);
+      alert('Errore invio: ' + msg);
+    }
+  }}
+  className="w-full h-11 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700 transition"
+>
+  Invia Magic Link
+</button>
+
+
             <p className="pb-8 text-xs text-neutral-500">By signing in, you agree to our <span className="underline decoration-dotted">Terms</span> and <span className="underline decoration-dotted">Privacy Policy</span>.</p>
           </form>
         </div>

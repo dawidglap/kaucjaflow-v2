@@ -183,6 +183,7 @@ export default function PosPage() {
             Aggiorna
           </button>
           <a href="/report" className="text-sm underline text-neutral-300 hover:text-white">Report</a>
+          <a href="/history" className="text-sm underline">History</a>
           <a href="/api/auth/logout" className="text-sm underline text-rose-300 hover:text-rose-200">Logout</a>
         </nav>
       </header>

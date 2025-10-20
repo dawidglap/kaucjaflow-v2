@@ -98,21 +98,44 @@ export async function POST(req: Request) {
     }
 }
 
-// ---------- GET: eventi di oggi per quello shop ----------
 export async function GET(req: Request) {
-    const s = getSessionFromReq(req);
-    if (!s) return NextResponse.json({ ok: false, error: 'UNAUTHORIZED' }, { status: 401 });
+    const session = getSessionFromReq(req);
+    if (!session) return NextResponse.json({ ok: false, error: 'UNAUTHORIZED' }, { status: 401 });
 
-    const today = new Date().toISOString().slice(0, 10);
-    const start = new Date(today);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 1);
+    const url = new URL(req.url);
+    const dateStr = url.searchParams.get('date'); // YYYY-MM-DD oppure null = oggi
+
+    const base = dateStr ? new Date(dateStr + 'T00:00:00') : new Date(); // default oggi
+    const dayStart = new Date(base); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(base); dayEnd.setHours(23, 59, 59, 999);
 
     const coll = await getColl();
-    const docs = await coll
-        .find({ shop_id: s.shopId, ts: { $gte: start.getTime(), $lt: end.getTime() } })
-        .sort({ ts: -1 })
+    const shopId = String(session.shopId);
+
+    // Prendiamo gli eventi del giorno per quello shop
+    const events = await coll
+        .find({ shop_id: shopId, ts: { $gte: dayStart.getTime(), $lte: dayEnd.getTime() } })
+        .sort({ ts: 1 })
         .toArray();
 
-    return NextResponse.json({ ok: true, events: docs });
+    // piccola aggregazione sui conteggi
+    const summary = events.reduce(
+        (acc: Record<string, number>, e: any) => {
+            acc[e.type] = (acc[e.type] || 0) + 1;
+            return acc;
+        },
+        { PLASTIC: 0, ALU: 0, SZKLO: 0 }
+    );
+
+    return NextResponse.json({
+        ok: true,
+        date: dayStart.toISOString().slice(0, 10),
+        summary,
+        events: events.map(e => ({
+            _id: String(e._id),
+            type: e.type,
+            ts: e.ts,
+            client_event_id: e.client_event_id ?? null,
+        })),
+    });
 }
