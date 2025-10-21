@@ -1,3 +1,4 @@
+// src/app/api/auth/magic/dev-login/route.ts
 import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 import jwt from 'jsonwebtoken';
@@ -6,14 +7,26 @@ const MONGODB_URI = process.env.MONGODB_URI!;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-please-change';
 const COOKIE = 'kf_token';
 
-let client: MongoClient | null = null;
+// ---- NEW: cache globale per il client ----
+declare global {
+    // eslint-disable-next-line no-var
+    var _mongoClientPromise: Promise<MongoClient> | undefined;
+}
+
+let clientPromise: Promise<MongoClient>;
+if (!global._mongoClientPromise) {
+    const _client = new MongoClient(MONGODB_URI);
+    global._mongoClientPromise = _client.connect(); // v5: safe/idempotente
+}
+clientPromise = global._mongoClientPromise;
+
 async function getDb() {
-    if (!client) client = new MongoClient(MONGODB_URI);
-    if (!client.topology?.isConnected()) await client.connect();
+    const client = await clientPromise;
     const db = client.db(process.env.MONGODB_DB || 'kaucjaflow');
     return { shops: db.collection('shops'), users: db.collection('users') };
 }
 
+// ---- resto del file invariato ----
 function setSessionCookie(res: NextResponse, payload: any) {
     const token = jwt.sign(payload, SESSION_SECRET, { expiresIn: '14d' });
     res.cookies.set({
@@ -31,6 +44,7 @@ export async function GET(req: Request) {
     if (process.env.NODE_ENV === 'production') {
         return NextResponse.json({ error: 'Not Found' }, { status: 404 });
     }
+
     const url = new URL(req.url);
     const email = url.searchParams.get('email')?.toLowerCase() || '';
     const role = (url.searchParams.get('role') || 'admin') as 'admin' | 'cashier';
