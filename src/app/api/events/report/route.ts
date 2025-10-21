@@ -8,24 +8,26 @@ import PDFDocument from 'pdfkit/js/pdfkit.standalone.js';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const MONGODB_URI = process.env.MONGODB_URI!;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-please-change';
 const COOKIE = 'kf_token';
 
-// ---------- MongoDB client cache (compatibile v5) ----------
+// ---------- MongoDB client cache (lazy, compat v5) ----------
 declare global {
     // eslint-disable-next-line no-var
-    var _mongoClientPromise: Promise<MongoClient> | undefined;
+    var _kf_mongo_promise_report: Promise<MongoClient> | undefined;
 }
-let clientPromise: Promise<MongoClient>;
-if (!global._mongoClientPromise) {
-    const _client = new MongoClient(MONGODB_URI);
-    global._mongoClientPromise = _client.connect();
+
+function getClientPromise() {
+    if (!global._kf_mongo_promise_report) {
+        const uri = process.env.MONGODB_URI;
+        if (!uri) throw new Error('MONGODB_URI is not set');
+        const client = new MongoClient(uri);
+        global._kf_mongo_promise_report = client.connect();
+    }
+    return global._kf_mongo_promise_report!;
 }
-clientPromise = global._mongoClientPromise;
 
 async function getColl() {
-    const client = await clientPromise;
+    const client = await getClientPromise();
     const db = client.db(process.env.MONGODB_DB || 'kaucjaflow');
     return db.collection('events');
 }
@@ -42,11 +44,8 @@ function getSession(req: Request) {
     const token = jar[COOKIE];
     if (!token) return null;
     try {
-        return jwt.verify(token, SESSION_SECRET) as {
-            shopId: string;
-            userId: string;
-            email: string;
-        };
+        const secret = process.env.SESSION_SECRET || 'dev-secret-please-change';
+        return jwt.verify(token, secret) as { shopId: string; userId: string; email: string };
     } catch {
         return null;
     }
@@ -87,7 +86,6 @@ export async function GET(req: Request) {
     // ---------- Genera PDF -> Buffer -> ArrayBuffer ----------
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
 
-    // In Node, PDFKit emette Buffer sui 'data'
     const chunks: Buffer[] = [];
     doc.on('data', (c: Buffer) => chunks.push(c));
     const done = new Promise<Buffer>((resolve) => {
@@ -142,7 +140,7 @@ export async function GET(req: Request) {
 
     const buf = await done; // Buffer da PDFKit
 
-    // ✅ Crea un ArrayBuffer "pulito" (niente union con SharedArrayBuffer)
+    // Crea un ArrayBuffer "pulito" (evita SharedArrayBuffer/union)
     const ab = new ArrayBuffer(buf.byteLength);
     new Uint8Array(ab).set(buf);
 
@@ -155,5 +153,4 @@ export async function GET(req: Request) {
             'Cache-Control': 'no-store',
         },
     });
-
 }
