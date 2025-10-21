@@ -84,127 +84,63 @@ export async function GET(req: Request) {
     const total = summary.PLASTIC + summary.ALU + summary.SZKLO;
 
     // ---------- Genera PDF -> Buffer -> ArrayBuffer ----------
-    // Stile: minimal, B/W, stampabile, tutto in PL
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
+
     const chunks: Buffer[] = [];
     doc.on('data', (c: Buffer) => chunks.push(c));
     const done = new Promise<Buffer>((resolve) => {
         doc.on('end', () => resolve(Buffer.concat(chunks)));
     });
 
-    // Colori (grayscale per stampa)
-    const TXT = '#000000';
-    const SUB = '#555555';
-    const LINE = '#A9A9A9';
-
-    // HEADER
-    doc.fillColor(TXT).font('Helvetica-Bold').fontSize(18).text('Raport dzienny', { align: 'left' });
-    doc.moveDown(0.4);
-    doc.font('Helvetica').fontSize(10).fillColor(SUB).text(`Dzień: ${day}`);
+    // header (PL)
+    doc.fillColor('#111').fontSize(20).text('KaucjaFlow — Raport dzienny', { align: 'left' });
+    doc.moveDown(0.3).fontSize(10).fillColor('#666').text(`Dzień: ${day}`);
     doc.moveDown(0.1).text(`Sklep: ${s.shopId}`);
     doc.moveDown(0.1).text(`Wygenerowano dla: ${s.email}`);
-    doc.moveDown(0.6);
-
-    // Linea separatrice
-    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const x0 = doc.page.margins.left;
-    const y0 = doc.y;
-    doc
-        .moveTo(x0, y0)
-        .lineTo(x0 + pageWidth, y0)
-        .strokeColor(LINE)
-        .lineWidth(1)
-        .stroke();
     doc.moveDown(1);
 
-    // TITOLO TABELLA
-    doc.fillColor(TXT).font('Helvetica-Bold').fontSize(12).text('Podsumowanie');
-    doc.moveDown(0.5);
-
-    // TABELLA (colonne allineate, numeri a destra)
-    const startX = x0;
-    let y = doc.y;
-    const col1 = startX;
-    const col2 = startX + 350; // colonna numerica a destra
-
-    // Header riga
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(TXT);
-    doc.text('Typ', col1, y);
-    doc.text('Liczba', col2, y, { width: 200, align: 'right' });
-    y += 16;
-
-    // Linea
-    doc
-        .moveTo(startX, y)
-        .lineTo(startX + pageWidth, y)
-        .strokeColor(LINE)
-        .lineWidth(1)
-        .stroke();
-    y += 6;
-
-    // Righe
+    // tabella semplice (PL)
     const rows: Array<[string, number]> = [
         ['PLASTIK', summary.PLASTIC],
         ['ALUMINIUM', summary.ALU],
         ['SZKŁO', summary.SZKLO],
     ];
 
-    doc.font('Helvetica').fontSize(10).fillColor(TXT);
+    doc.fontSize(12).fillColor('#111').text('Podsumowanie', { underline: true });
+    doc.moveDown(0.5);
 
-    rows.forEach(([label, value], idx) => {
+    const startX = 50;
+    let y = doc.y;
+    const col1 = startX;
+    const col2 = 350;
+
+    doc.font('Helvetica-Bold');
+    doc.text('Typ', col1, y);
+    doc.text('Liczba', col2, y);
+    y += 18;
+    doc.font('Helvetica');
+
+    rows.forEach(([label, value]) => {
         doc.text(label, col1, y);
-        doc.text(String(value), col2, y, { width: 200, align: 'right' });
+        doc.text(String(value), col2, y);
         y += 18;
-
-        // riga puntinata tra le voci (non dopo l’ultima)
-        if (idx < rows.length - 1) {
-            doc
-                .dash(1, { space: 3 })
-                .moveTo(startX, y - 6)
-                .lineTo(startX + pageWidth, y - 6)
-                .undash()
-                .strokeColor(LINE)
-                .lineWidth(1)
-                .stroke();
-        }
     });
 
-    // Totale
-    y += 6;
-    doc.font('Helvetica-Bold').fontSize(10);
+    doc.moveTo(startX, y + 4).lineTo(550, y + 4).strokeColor('#ddd').stroke();
+    y += 12;
+    doc.font('Helvetica-Bold');
     doc.text('Razem', col1, y);
-    doc.text(String(total), col2, y, { width: 200, align: 'right' });
+    doc.text(String(total), col2, y);
+    doc.font('Helvetica');
 
-    // NOTE FINALI
     doc.moveDown(2);
-    doc.font('Helvetica').fontSize(9).fillColor(SUB).text(
-        `Uwaga: raport przedstawia sumę zdarzeń zarejestrowanych w dniu ${day}. ` +
-        `W przypadku rozbieżności prosimy o kontakt: support@kaucjaflow.pl`,
-        { width: pageWidth },
-    );
-
-    // NUMERI DI PAGINA (in basso a destra)
-    const addPageNumbers = () => {
-        const range = doc.bufferedPageRange();
-        for (let i = 0; i < range.count; i++) {
-            doc.switchToPage(i);
-            const pageNum = `Strona ${i + 1} z ${range.count}`;
-            doc
-                .font('Helvetica')
-                .fontSize(9)
-                .fillColor(SUB)
-                .text(pageNum, doc.page.margins.left, doc.page.height - 40, {
-                    width: pageWidth,
-                    align: 'right',
-                });
-        }
-    };
-    addPageNumbers();
+    doc.fontSize(9).fillColor('#7a7a7a').text('© KaucjaFlow', { align: 'right' });
 
     doc.end();
-    const buf = await done;
 
-    // Crea un ArrayBuffer "pulito"
+    const buf = await done; // Buffer da PDFKit
+
+    // Crea un ArrayBuffer "pulito" (evita SharedArrayBuffer/union)
     const ab = new ArrayBuffer(buf.byteLength);
     new Uint8Array(ab).set(buf);
 
