@@ -140,9 +140,11 @@ export async function GET(req: Request) {
 
     doc.end();
 
-    const buf = await done; // Buffer
-    // Converti in ArrayBuffer "pulito" (senza offset)
-    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    const buf = await done; // Buffer da PDFKit
+
+    // ✅ Crea un ArrayBuffer "pulito" (niente union con SharedArrayBuffer)
+    const ab = new ArrayBuffer(buf.byteLength);
+    new Uint8Array(ab).set(buf);
 
     const filename = `report-${day}.pdf`;
     return new NextResponse(ab, {
@@ -153,4 +155,5 @@ export async function GET(req: Request) {
             'Cache-Control': 'no-store',
         },
     });
+
 }
