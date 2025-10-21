@@ -1,38 +1,52 @@
-// app/api/events/report/route.ts
+// src/app/api/events/report/route.ts
 import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 import jwt from 'jsonwebtoken';
-// @ts-expect-error: types non necessari per pdfkit in questa sede
+// @ts-expect-error: pdfkit standalone non ha tipi completi qui
 import PDFDocument from 'pdfkit/js/pdfkit.standalone.js';
-export const dynamic = 'force-dynamic';
 
+export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const MONGODB_URI = process.env.MONGODB_URI!;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-please-change';
 const COOKIE = 'kf_token';
 
-let client: MongoClient | null = null;
+// ---------- MongoDB client cache (compatibile v5) ----------
+declare global {
+    // eslint-disable-next-line no-var
+    var _mongoClientPromise: Promise<MongoClient> | undefined;
+}
+let clientPromise: Promise<MongoClient>;
+if (!global._mongoClientPromise) {
+    const _client = new MongoClient(MONGODB_URI);
+    global._mongoClientPromise = _client.connect();
+}
+clientPromise = global._mongoClientPromise;
+
 async function getColl() {
-    if (!client) client = new MongoClient(MONGODB_URI);
-    // @ts-expect-error topology è privata ma utile in dev
-    if (!client.topology?.isConnected()) await client.connect();
+    const client = await clientPromise;
     const db = client.db(process.env.MONGODB_DB || 'kaucjaflow');
     return db.collection('events');
 }
 
+// ---------- Sessione da cookie ----------
 function getSession(req: Request) {
     const cookieHeader = new Headers(req.headers).get('cookie') || '';
     const jar = Object.fromEntries(
         cookieHeader.split(';').map((p) => {
             const [k, ...r] = p.trim().split('=');
             return [k, decodeURIComponent(r.join('='))];
-        })
-    );
+        }),
+    ) as Record<string, string | undefined>;
     const token = jar[COOKIE];
     if (!token) return null;
     try {
-        return jwt.verify(token, SESSION_SECRET) as { shopId: string; userId: string; email: string };
+        return jwt.verify(token, SESSION_SECRET) as {
+            shopId: string;
+            userId: string;
+            email: string;
+        };
     } catch {
         return null;
     }
@@ -64,23 +78,32 @@ export async function GET(req: Request) {
 
     const summary: Record<'PLASTIC' | 'ALU' | 'SZKLO', number> = { PLASTIC: 0, ALU: 0, SZKLO: 0 };
     agg.forEach((r: any) => {
-        if (summary.hasOwnProperty(r._id)) summary[r._id as keyof typeof summary] = r.count;
+        if (Object.prototype.hasOwnProperty.call(summary, r._id)) {
+            summary[r._id as keyof typeof summary] = r.count;
+        }
     });
     const total = summary.PLASTIC + summary.ALU + summary.SZKLO;
 
-    // --- genera PDF (buffer) ---
+    // ---------- Genera PDF -> Uint8Array ----------
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
-    const chunks: Buffer[] = [];
-    doc.on('data', (c: Buffer) => chunks.push(c));
-    const done = new Promise<Buffer>((resolve) => {
-        doc.on('end', () => resolve(Buffer.concat(chunks)));
+    const chunks: Uint8Array[] = [];
+    doc.on('data', (c: Uint8Array) => chunks.push(c));
+    const done = new Promise<Uint8Array>((resolve) => {
+        doc.on('end', () => {
+            // concatena Uint8Array senza Buffer, così BodyInit è valido a livello di tipi
+            const totalLen = chunks.reduce((n, c) => n + c.length, 0);
+            const bytes = new Uint8Array(totalLen);
+            let offset = 0;
+            for (const c of chunks) {
+                bytes.set(c, offset);
+                offset += c.length;
+            }
+            resolve(bytes);
+        });
     });
 
     // header
-    doc
-        .fillColor('#111')
-        .fontSize(20)
-        .text('KaucjaFlow — Report Giornaliero', { align: 'left' });
+    doc.fillColor('#111').fontSize(20).text('KaucjaFlow — Report Giornaliero', { align: 'left' });
     doc.moveDown(0.3).fontSize(10).fillColor('#666').text(`Data: ${day}`);
     doc.moveDown(0.1).text(`Shop: ${s.shopId}`);
     doc.moveDown(0.1).text(`Generato per: ${s.email}`);
@@ -124,10 +147,10 @@ export async function GET(req: Request) {
     doc.fontSize(9).fillColor('#7a7a7a').text('© KaucjaFlow', { align: 'right' });
 
     doc.end();
-    const pdf = await done;
+    const bytes = await done;
 
     const filename = `report-${day}.pdf`;
-    return new NextResponse(pdf, {
+    return new NextResponse(bytes, {
         status: 200,
         headers: {
             'Content-Type': 'application/pdf',
