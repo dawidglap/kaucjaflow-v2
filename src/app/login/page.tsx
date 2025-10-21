@@ -1,4 +1,6 @@
 'use client';
+import Image from 'next/image';
+import Link from 'next/link';
 import { useState } from 'react';
 
 /**
@@ -94,18 +96,26 @@ export default function LoginPage() {
 
       <div className="relative z-10 w-full max-w-md px-4">
         <div className="mb-8">
-          <a
+          <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-neutral-300 hover:text-white"
           >
             <span className="inline-block rotate-180 select-none">➜</span> Strona główna
-          </a>
+          </Link>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-neutral-900/70 backdrop-blur-md shadow-2xl">
           <div className="flex items-center justify-center pt-8">
-            <div className="size-12 rounded-xl grid place-items-center bg-white/10">
-              <span className="text-white font-semibold text-lg tracking-tight">K</span>
+            {/* LOGO */}
+            <div className="rounded-xl bg-white/10 px-4 p-2">
+              <Image
+                src="/images/logo.png"
+                alt="Logo"
+                width={160}
+                height={48}
+                className="rounded-md object-contain"
+                priority
+              />
             </div>
           </div>
 
