@@ -84,22 +84,14 @@ export async function GET(req: Request) {
     });
     const total = summary.PLASTIC + summary.ALU + summary.SZKLO;
 
-    // ---------- Genera PDF -> Uint8Array ----------
+    // ---------- Genera PDF -> Buffer -> ArrayBuffer ----------
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
-    const chunks: Uint8Array[] = [];
-    doc.on('data', (c: Uint8Array) => chunks.push(c));
-    const done = new Promise<Uint8Array>((resolve) => {
-        doc.on('end', () => {
-            // concatena Uint8Array senza Buffer, così BodyInit è valido a livello di tipi
-            const totalLen = chunks.reduce((n, c) => n + c.length, 0);
-            const bytes = new Uint8Array(totalLen);
-            let offset = 0;
-            for (const c of chunks) {
-                bytes.set(c, offset);
-                offset += c.length;
-            }
-            resolve(bytes);
-        });
+
+    // In Node, PDFKit emette Buffer sui 'data'
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    const done = new Promise<Buffer>((resolve) => {
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
     });
 
     // header
@@ -147,10 +139,13 @@ export async function GET(req: Request) {
     doc.fontSize(9).fillColor('#7a7a7a').text('© KaucjaFlow', { align: 'right' });
 
     doc.end();
-    const bytes = await done;
+
+    const buf = await done; // Buffer
+    // Converti in ArrayBuffer "pulito" (senza offset)
+    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
 
     const filename = `report-${day}.pdf`;
-    return new NextResponse(bytes, {
+    return new NextResponse(ab, {
         status: 200,
         headers: {
             'Content-Type': 'application/pdf',
