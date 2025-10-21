@@ -3,18 +3,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 
-/**
- * Ekran logowania dla sklepów (PL).
- * - W produkcji: tylko pole e-mail + wysyłka magic linka.
- * - W DEV (gdy NEXT_PUBLIC_DEV_LOGIN=1): sekcja "Zaawansowane (DEV)" oraz szybkie logowanie dev-login.
- */
 const DEV = process.env.NEXT_PUBLIC_DEV_LOGIN === '1';
-
 type Rola = 'admin' | 'cashier';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
-  const [advanced, setAdvanced] = useState(false); // pokazywane wyłącznie w DEV
+  const [advanced, setAdvanced] = useState(false); // tylko w DEV
   const [shop, setShop] = useState('Shop 1');
   const [role, setRole] = useState<Rola>('cashier');
   const [submitting, setSubmitting] = useState(false);
@@ -26,28 +20,23 @@ export default function LoginPage() {
     setInfo(null);
     setErr(null);
     try {
-      // W PRODUCTION: wysyłamy tylko email.
-      // W DEV + Advanced: pozwalamy na provisioning (shop/role) z poziomu formularza.
       const body: any = { email };
       if (DEV && advanced) {
         body.shopName = shop;
         body.role = role;
       }
-
       const r = await fetch('/api/auth/magic/request', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
       const j = await r.json().catch(() => ({}));
-
       if (j?.ok) {
         setInfo(
           j.delivered
-            ? `Wysłano link logowania na adres: ${email}. Sprawdź skrzynkę (również SPAM).`
+            ? `Wysłano link logowania na adres: ${email}. Sprawdź skrzynkę (także SPAM).`
             : 'Link wygenerowany na serwerze (tryb testowy).'
         );
-        setErr(null);
       } else if (j?.error === 'INVITE_REQUIRED') {
         setErr('Ten adres e-mail nie ma aktywnego zaproszenia. Skontaktuj się z opiekunem.');
       } else if (j?.error === 'RATE_LIMITED') {
@@ -62,7 +51,6 @@ export default function LoginPage() {
     }
   }
 
-  // Szybkie logowanie DEV (bez maila) – tylko gdy DEV=1
   function devLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!DEV) return;
@@ -72,8 +60,8 @@ export default function LoginPage() {
       const params = new URLSearchParams({
         email: email || 'admin1@demo.local',
         to: '/pos',
-        shop: shop,
-        role: role,
+        shop,
+        role,
       });
       window.location.href = `/api/auth/magic/dev-login?${params.toString()}`;
     } catch {
@@ -91,35 +79,38 @@ export default function LoginPage() {
         backgroundPosition: 'center',
       }}
     >
-      {/* przyciemnienie tła */}
+      {/* Tło przyciemnione */}
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-black/60" />
 
+      {/* LOGO w lewym górnym rogu – poza kartą */}
+      <div className="absolute top-6 left-6 z-20">
+        <Link href="/" className="inline-flex items-center gap-3">
+          <Image
+            src="/images/logo.png"
+            alt="KaucjaFlow — panel partnera"
+            width={160}
+            height={48}
+            className="rounded-md object-contain drop-shadow"
+            priority
+          />
+          {/* <span className="sr-only">Wróć na stronę główną</span> */}
+        </Link>
+      </div>
+
+      {/* Link powrotny (mobilny) */}
+      <div className="absolute top-6 right-6 z-20">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-sm text-neutral-300 hover:text-white"
+        >
+          <span className="inline-block rotate-180 select-none">➜</span> Strona główna
+        </Link>
+      </div>
+
+      {/* KARTA */}
       <div className="relative z-10 w-full max-w-md px-4">
-        <div className="mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm text-neutral-300 hover:text-white"
-          >
-            <span className="inline-block rotate-180 select-none">➜</span> Strona główna
-          </Link>
-        </div>
-
         <div className="rounded-2xl border border-white/10 bg-neutral-900/70 backdrop-blur-md shadow-2xl">
-          <div className="flex items-center justify-center pt-8">
-            {/* LOGO */}
-            <div className="rounded-xl bg-white/10 px-4 p-2">
-              <Image
-                src="/images/logo.png"
-                alt="Logo"
-                width={160}
-                height={48}
-                className="rounded-md object-contain"
-                priority
-              />
-            </div>
-          </div>
-
-          <div className="px-8 pt-6 text-center">
+          <div className="px-8 pt-8 text-center">
             <h1 className="text-2xl font-semibold tracking-tight text-white">Zaloguj się</h1>
             <p className="mt-1 text-sm text-neutral-400">
               Wpisz adres e-mail powiązany z Twoim sklepem. Wyślemy jednorazowy link logowania.
@@ -132,6 +123,8 @@ export default function LoginPage() {
               <input
                 type="email"
                 required
+                inputMode="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="jan.kowalski@sklep.pl"
@@ -139,7 +132,7 @@ export default function LoginPage() {
               />
             </div>
 
-            {/* Sekcja DEV – widoczna tylko gdy NEXT_PUBLIC_DEV_LOGIN=1 */}
+            {/* DEV tylko gdy NEXT_PUBLIC_DEV_LOGIN=1 */}
             {DEV && (
               <details
                 className="rounded-lg border border-white/10 bg-black/30 text-neutral-300"
@@ -170,6 +163,14 @@ export default function LoginPage() {
                     </select>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={devLogin}
+                  disabled={submitting}
+                  className="mt-3 w-full h-11 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700 transition"
+                >
+                  Szybkie logowanie (DEV)
+                </button>
               </details>
             )}
 
@@ -185,21 +186,19 @@ export default function LoginPage() {
               {submitting ? 'Wysyłam…' : 'Wyślij magic link'}
             </button>
 
-            {DEV && (
-              <button
-                type="button"
-                onClick={devLogin}
-                disabled={submitting}
-                className="w-full h-11 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700 transition"
-              >
-                Szybkie logowanie (DEV)
-              </button>
-            )}
-
             <p className="text-xs text-neutral-500">
               Logując się, akceptujesz nasze{' '}
-              <span className="underline decoration-dotted">Regulamin</span> oraz{' '}
-              <span className="underline decoration-dotted">Politykę prywatności</span>.
+              <Link href="/legal/terms" className="underline decoration-dotted">Regulamin</Link> oraz{' '}
+              <Link href="/legal/privacy" className="underline decoration-dotted">Politykę prywatności</Link>.
+            </p>
+
+            {/* Wskazówka status/tips (opcjonalnie) */}
+            <p className="text-xs text-neutral-500">
+              Nie otrzymałeś wiadomości?{' '}
+              <Link href="/status" className="underline decoration-dotted">
+                Sprawdź wskazówki
+              </Link>{' '}
+              i spróbuj ponownie za 2 minuty.
             </p>
           </form>
         </div>
