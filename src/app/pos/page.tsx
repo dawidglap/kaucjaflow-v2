@@ -1,4 +1,6 @@
 'use client';
+import Image from 'next/image';
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import {
   addEvent,
@@ -9,12 +11,6 @@ import {
   type LocalEvent,
   type EventType,
 } from '../../../lib/idb';
-
-function shortId(id: string, head = 6, tail = 4) {
-  if (!id) return '';
-  if (id.length <= head + tail + 1) return id;
-  return `${id.slice(0, head)}…${id.slice(-tail)}`;
-}
 
 export default function PosPage() {
   const [loading, setLoading] = useState(true);
@@ -161,141 +157,181 @@ export default function PosPage() {
 
   if (loading) {
     return (
-      <main className="min-h-[100svh] bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 grid place-items-center">
-        <div className="animate-pulse text-base text-slate-400 dark:text-slate-400">Ładowanie…</div>
+      <main className="min-h-[100svh] grid place-items-center text-white"
+        style={{
+          backgroundImage: "url('/images/bg-login.webp')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}>
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-black/60" />
+        <div className="relative z-10 animate-pulse text-base text-neutral-300">Ładowanie…</div>
       </main>
     );
   }
   if (!session) return null;
 
+  // Uwaga: w pilocie zakładamy, że session.shopId to czytelna nazwa (np. „Shop 1”).
+  const shopLabel = session.shopId;
+  const roleLabel = session.role === 'admin' ? 'admin' : 'cashier';
+
   return (
-    <main className="min-h-[100svh] bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 overflow-hidden">
-      {/* Full-screen layout */}
-      <div className="min-h-[100svh] flex flex-col">
-        {/* TOP BAR — bez overflow, ID skrócone z tooltipem */}
-        <header className="px-5 py-4 flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800">
-          <div className="flex items-center gap-2 text-sm min-w-0">
-            <span
-              className="font-semibold text-slate-900 dark:text-slate-100 max-w-[26ch] truncate"
-              title={session.shopId}
-            >
-              {shortId(session.shopId, 8, 6)}
-            </span>
-            <span className="text-slate-400">•</span>
-            <span className="text-slate-600 dark:text-slate-300 max-w-[32ch] truncate" title={session.email}>
-              {session.email}
-            </span>
-          </div>
+    <main
+      className="min-h-screen relative text-white overflow-hidden"
+      style={{
+        backgroundImage: "url('/images/bg-login.webp')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      {/* Przyciemnienie tła */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-black/60" />
 
-          <div className="flex items-center gap-2 shrink-0">
-            <span
-              className="text-xs rounded-full px-2.5 py-1 border border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-              aria-live="polite"
-              title={online ? 'Połączono' : 'Offline'}
-            >
-              {online ? (syncing ? 'Synchronizacja…' : `Oczekuje: ${unsyncedCount}`) : 'Offline'}
-            </span>
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              className="rounded-xl px-4 py-2 text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-            >
-              {syncing ? 'Synchronizacja…' : 'Synchronizuj'}
-            </button>
-          </div>
-        </header>
+      {/* LOGO w lewym górnym rogu – poza kontentem */}
+      <div className="absolute top-6 left-6 z-20">
+        <Link href="/" className="inline-flex items-center gap-3">
+          <Image
+            src="/images/logo.png"
+            alt="KaucjaFlow — panel partnera"
+            width={160}
+            height={48}
+            className="rounded-md object-contain drop-shadow"
+            priority
+          />
+          <span className="sr-only">Strona główna</span>
+        </Link>
+      </div>
 
-        {/* MAIN — kolory wyraźne, kontrast wysokiej czytelności */}
-         <section
-        className="
-          flex-1 min-h-0                           /* permette alle card di estendersi */
-          grid grid-cols-1 md:grid-cols-3 gap-4
-          p-5 items-stretch content-stretch
-        "
-      >
-        {/* PLASTIK */}
-        <button
-          onClick={() => handleClick('PLASTIC')}
-          className="
-            group h-full rounded-3xl shadow-sm hover:shadow-md transition active:scale-[.985]
-            focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-300/50
-            bg-gradient-to-b from-amber-400 to-amber-400 text-black
-            dark:from-amber-400 dark:to-amber-600
-          "
-          aria-label="Dodaj 1 Plastik"
-        >
-          <div className="h-full w-full grid place-items-center p-6">
-            <div className="text-center">
-              <div className="text-xs uppercase tracking-wide opacity-85">Dodaj</div>
-              <div className="mt-1 text-4xl md:text-7xl font-extrabold">PLASTIK</div>
-              <div className="mt-2 text-2xl opacity-90 tabular-nums">({counts.PLASTIC || 0})</div>
+      {/* HEADER “glass” */}
+      <header className="relative z-10 px-4 md:px-6 pt-24 md:pt-28">
+        <div className="mx-auto max-w-5xl rounded-2xl border border-white/10 bg-neutral-900/60 backdrop-blur-md shadow-2xl">
+          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6 px-5 md:px-8 py-4">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-neutral-400">Sklep</div>
+              <div className="text-lg md:text-xl font-semibold truncate">{shopLabel}</div>
+            </div>
+            <div className="flex items-center gap-3 md:gap-4">
+              <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-sm text-neutral-200">
+                Rola: <span className="font-medium">{roleLabel}</span>
+              </span>
+              <span
+                className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-sm"
+                title={online ? 'Połączono' : 'Offline'}
+                aria-live="polite"
+              >
+                {online ? (syncing ? 'Synchronizacja…' : `Oczekuje: ${unsyncedCount}`) : 'Offline'}
+              </span>
+
+              {/* Akcje: Raport & Wyloguj */}
+              <Link
+                href="/report"
+                className="rounded-xl px-4 py-2 text-sm font-semibold bg-white text-black hover:bg-neutral-200 active:scale-[.99] transition"
+                title="Raport dzienny"
+              >
+                Raport
+              </Link>
+              <a
+                href="/api/auth/logout?to=/login"
+                className="rounded-xl px-4 py-2 text-sm font-semibold border border-white/10 bg-black/40 hover:bg-black/60"
+              >
+                Wyloguj
+              </a>
             </div>
           </div>
-        </button>
+        </div>
+      </header>
 
-        {/* SZKŁO */}
-        <button
-          onClick={() => handleClick('SZKLO')}
-          className="
-            group h-full rounded-3xl shadow-sm hover:shadow-md transition active:scale-[.985]
-            focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-300/50
-            bg-gradient-to-b from-emerald-400 to-emerald-600 text-white
-            dark:from-emerald-600 dark:to-emerald-700
-          "
-          aria-label="Dodaj 1 Szkło"
-        >
-          <div className="h-full w-full grid place-items-center p-6">
-            <div className="text-center">
-              <div className="text-xs uppercase tracking-wide text-white/90">Dodaj</div>
-              <div className="mt-1 text-4xl md:text-7xl font-extrabold">SZKŁO</div>
-              <div className="mt-2 text-2xl text-white/95 tabular-nums">({counts.SZKLO || 0})</div>
+      {/* MAIN – 3 przyciski, wypełniają dostępne miejsce */}
+      <section className="relative z-10 px-4 md:px-6 mt-6">
+        <div className="mx-auto max-w-5xl min-h-[38vh] md:min-h-[44vh] grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+          {/* PLASTIK */}
+          <button
+            onClick={() => handleClick('PLASTIC')}
+            className="
+              group h-full rounded-3xl shadow-sm hover:shadow-md transition active:scale-[.985]
+              focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-300/50
+              bg-gradient-to-b from-amber-400 to-amber-600 text-black
+            "
+            aria-label="Dodaj 1 Plastik"
+          >
+            <div className="h-full w-full grid place-items-center p-6">
+              <div className="text-center">
+                <div className="text-xs uppercase tracking-wide opacity-85">Dodaj</div>
+                <div className="mt-1 text-4xl md:text-4xl xl:text-4xl font-extrabold">PLASTIK</div>
+                <div className="mt-2 text-2xl opacity-90 tabular-nums">({counts.PLASTIC || 0})</div>
+              </div>
             </div>
-          </div>
-        </button>
+          </button>
 
-        {/* ALUMINIUM */}
-        <button
-          onClick={() => handleClick('ALU')}
-          className="
-            group h-full rounded-3xl shadow-sm hover:shadow-md transition active:scale-[.985]
-            focus:outline-none focus-visible:ring-4 focus-visible:ring-zinc-300/60
-            bg-gradient-to-b from-zinc-600 to-zinc-700 text-white
-            dark:from-zinc-600 dark:to-zinc-700
-          "
-          aria-label="Dodaj 1 Aluminium"
-        >
-          <div className="h-full w-full grid place-items-center p-6">
-            <div className="text-center">
-              <div className="text-xs uppercase tracking-wide text-white/90">Dodaj</div>
-              <div className="mt-1 text-4xl md:text-7xl font-extrabold">ALUMINIUM</div>
-              <div className="mt-2 text-2xl text-white/95 tabular-nums">({counts.ALU || 0})</div>
+          {/* SZKŁO */}
+          <button
+            onClick={() => handleClick('SZKLO')}
+            className="
+              group h-full rounded-3xl shadow-sm hover:shadow-md transition active:scale-[.985]
+              focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-300/50
+              bg-gradient-to-b from-emerald-500 to-emerald-700 text-white
+            "
+            aria-label="Dodaj 1 Szkło"
+          >
+            <div className="h-full w-full grid place-items-center p-6">
+              <div className="text-center">
+                <div className="text-xs uppercase tracking-wide text-white/90">Dodaj</div>
+                <div className="mt-1 text-4xl md:text-4xl xl:text-4xl font-extrabold">SZKŁO</div>
+                <div className="mt-2 text-2xl text-white/95 tabular-nums">({counts.SZKLO || 0})</div>
+              </div>
             </div>
-          </div>
-        </button>
+          </button>
+
+          {/* ALUMINIUM */}
+          <button
+            onClick={() => handleClick('ALU')}
+            className="
+              group h-full rounded-3xl shadow-sm hover:shadow-md transition active:scale-[.985]
+              focus:outline-none focus-visible:ring-4 focus-visible:ring-zinc-300/60
+              bg-gradient-to-b from-zinc-600 to-zinc-700 text-white
+            "
+            aria-label="Dodaj 1 Aluminium"
+          >
+            <div className="h-full w-full grid place-items-center p-6">
+              <div className="text-center">
+                <div className="text-xs uppercase tracking-wide text-white/90">Dodaj</div>
+                <div className="mt-1 text-4xl md:text-4xl xl:text-4xl font-extrabold">ALUMINIUM</div>
+                <div className="mt-2 text-2xl text-white/95 tabular-nums">({counts.ALU || 0})</div>
+              </div>
+            </div>
+          </button>
+        </div>
       </section>
 
-        {/* BOTTOM BAR */}
-        <footer className="px-5 py-4 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-lg">
+      {/* FOOTER – total + akcje pomocnicze */}
+      <footer className="relative z-10 px-4 md:px-6 mt-6 pb-8">
+        <div className="mx-auto max-w-5xl rounded-2xl border border-white/10 bg-neutral-900/60 backdrop-blur-md shadow-2xl px-5 md:px-8 py-4 flex items-center justify-between">
           <div className="font-semibold">
             Dziś razem: <span className="tabular-nums">{events.length}</span>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => pullFromServer(session.shopId)}
-              className="rounded-xl px-4 py-2 text-sm font-semibold border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 dark:text-slate-200"
+              className="rounded-xl px-4 py-2 text-sm font-semibold border border-white/10 bg-black/40 hover:bg-black/60"
               title="Pobierz najnowsze dane z serwera"
             >
               Odśwież
             </button>
             <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="rounded-xl px-4 py-2 text-sm font-semibold bg-white text-black hover:bg-neutral-200 active:scale-[.99] transition disabled:opacity-50"
+            >
+              {syncing ? 'Synchronizacja…' : 'Synchronizuj'}
+            </button>
+            <button
               onClick={handleClear}
-              className="rounded-xl px-4 py-2 text-sm font-semibold text-rose-700 hover:text-rose-800 underline underline-offset-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 dark:text-rose-300 dark:hover:text-rose-200"
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-rose-300 hover:text-rose-200 underline underline-offset-4"
             >
               Wyczyść dzisiaj
             </button>
           </div>
-        </footer>
-      </div>
+        </div>
+      </footer>
     </main>
   );
 }
