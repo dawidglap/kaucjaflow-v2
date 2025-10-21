@@ -15,18 +15,32 @@ import {
 export default function PosPage() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<{ email: string; role: string; shopId: string } | null>(null);
+  const [shopName, setShopName] = useState<string>('Sklep');
   const [events, setEvents] = useState<LocalEvent[]>([]);
   const [syncing, setSyncing] = useState(false);
   const syncingRef = useRef(false);
 
+  // bootstrap session + local events + first pull
   useEffect(() => {
     (async () => {
       const r = await fetch('/api/auth/whoami', { cache: 'no-store', credentials: 'same-origin' });
       const j = await r.json();
-      if (!j?.loggedIn) return (window.location.href = '/login');
-
+      if (!j?.loggedIn) {
+        window.location.href = '/login';
+        return;
+      }
       setSession(j.session);
       setEvents(await allToday(j.session.shopId));
+
+      // fetch shop name (uses your new /api/shops/[id])
+      try {
+        const s = await fetch(`/api/shops/${j.session.shopId}`, { cache: 'no-store' });
+        const sj = await s.json().catch(() => ({}));
+        if (sj?.ok && sj.name) setShopName(sj.name as string);
+        else setShopName(j.session.shopId); // fallback (pilot)
+      } catch {
+        setShopName(j.session.shopId); // offline/fallback
+      }
 
       await pullFromServer(j.session.shopId);
       setLoading(false);
@@ -48,6 +62,7 @@ export default function PosPage() {
         }))
       );
 
+      // backfill local ids that server doesn't know yet
       const serverIds = new Set(
         j.events.map((e: any) => String(e.client_event_id ?? e.clientEventId ?? '')).filter(Boolean)
       );
@@ -157,12 +172,14 @@ export default function PosPage() {
 
   if (loading) {
     return (
-      <main className="min-h-[100svh] grid place-items-center text-white"
+      <main
+        className="min-h-[100svh] grid place-items-center text-white relative"
         style={{
           backgroundImage: "url('/images/bg-login.webp')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-        }}>
+        }}
+      >
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-black/60" />
         <div className="relative z-10 animate-pulse text-base text-neutral-300">Ładowanie…</div>
       </main>
@@ -170,8 +187,6 @@ export default function PosPage() {
   }
   if (!session) return null;
 
-  // Uwaga: w pilocie zakładamy, że session.shopId to czytelna nazwa (np. „Shop 1”).
-  const shopLabel = session.shopId;
   const roleLabel = session.role === 'admin' ? 'admin' : 'cashier';
 
   return (
@@ -186,7 +201,7 @@ export default function PosPage() {
       {/* Przyciemnienie tła */}
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-black/60" />
 
-      {/* LOGO w lewym górnym rogu – poza kontentem */}
+      {/* LOGO */}
       <div className="absolute top-6 left-6 z-20">
         <Link href="/" className="inline-flex items-center gap-3">
           <Image
@@ -201,18 +216,18 @@ export default function PosPage() {
         </Link>
       </div>
 
-      {/* HEADER “glass” */}
+      {/* HEADER glass */}
       <header className="relative z-10 px-4 md:px-6 pt-24 md:pt-28">
         <div className="mx-auto max-w-5xl rounded-2xl border border-white/10 bg-neutral-900/60 backdrop-blur-md shadow-2xl">
           <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6 px-5 md:px-8 py-4">
             <div className="flex-1 min-w-0">
               <div className="text-sm text-neutral-400">Sklep</div>
-              <div className="text-lg md:text-xl font-semibold truncate">{shopLabel}</div>
+              <div className="text-lg md:text-xl font-semibold truncate">{shopName}</div>
             </div>
             <div className="flex items-center gap-3 md:gap-4">
-              <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-sm text-neutral-200">
+              {/* <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-sm text-neutral-200">
                 Rola: <span className="font-medium">{roleLabel}</span>
-              </span>
+              </span> */}
               <span
                 className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-sm"
                 title={online ? 'Połączono' : 'Offline'}
@@ -240,7 +255,7 @@ export default function PosPage() {
         </div>
       </header>
 
-      {/* MAIN – 3 przyciski, wypełniają dostępne miejsce */}
+      {/* MAIN – 3 przyciski */}
       <section className="relative z-10 px-4 md:px-6 mt-6">
         <div className="mx-auto max-w-5xl min-h-[38vh] md:min-h-[44vh] grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
           {/* PLASTIK */}
@@ -256,8 +271,8 @@ export default function PosPage() {
             <div className="h-full w-full grid place-items-center p-6">
               <div className="text-center">
                 <div className="text-xs uppercase tracking-wide opacity-85">Dodaj</div>
-                <div className="mt-1 text-4xl md:text-4xl xl:text-4xl font-extrabold">PLASTIK</div>
-                <div className="mt-2 text-2xl opacity-90 tabular-nums">({counts.PLASTIC || 0})</div>
+                <div className="mt-1 text-4xl  font-extrabold">PLASTIK</div>
+                <div className="mt-2 text-3xl opacity-90 tabular-nums">({counts.PLASTIC || 0})</div>
               </div>
             </div>
           </button>
@@ -275,8 +290,8 @@ export default function PosPage() {
             <div className="h-full w-full grid place-items-center p-6">
               <div className="text-center">
                 <div className="text-xs uppercase tracking-wide text-white/90">Dodaj</div>
-                <div className="mt-1 text-4xl md:text-4xl xl:text-4xl font-extrabold">SZKŁO</div>
-                <div className="mt-2 text-2xl text-white/95 tabular-nums">({counts.SZKLO || 0})</div>
+                <div className="mt-1 text-4xl  font-extrabold">SZKŁO</div>
+                <div className="mt-2 text-3xl text-white/95 tabular-nums">({counts.SZKLO || 0})</div>
               </div>
             </div>
           </button>
@@ -294,8 +309,8 @@ export default function PosPage() {
             <div className="h-full w-full grid place-items-center p-6">
               <div className="text-center">
                 <div className="text-xs uppercase tracking-wide text-white/90">Dodaj</div>
-                <div className="mt-1 text-4xl md:text-4xl xl:text-4xl font-extrabold">ALUMINIUM</div>
-                <div className="mt-2 text-2xl text-white/95 tabular-nums">({counts.ALU || 0})</div>
+                <div className="mt-1 text-4xl  font-extrabold">ALUMINIUM</div>
+                <div className="mt-2 text-3xl text-white/95 tabular-nums">({counts.ALU || 0})</div>
               </div>
             </div>
           </button>
@@ -303,35 +318,47 @@ export default function PosPage() {
       </section>
 
       {/* FOOTER – total + akcje pomocnicze */}
-      <footer className="relative z-10 px-4 md:px-6 mt-6 pb-8">
-        <div className="mx-auto max-w-5xl rounded-2xl border border-white/10 bg-neutral-900/60 backdrop-blur-md shadow-2xl px-5 md:px-8 py-4 flex items-center justify-between">
-          <div className="font-semibold">
-            Dziś razem: <span className="tabular-nums">{events.length}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => pullFromServer(session.shopId)}
-              className="rounded-xl px-4 py-2 text-sm font-semibold border border-white/10 bg-black/40 hover:bg-black/60"
-              title="Pobierz najnowsze dane z serwera"
-            >
-              Odśwież
-            </button>
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              className="rounded-xl px-4 py-2 text-sm font-semibold bg-white text-black hover:bg-neutral-200 active:scale-[.99] transition disabled:opacity-50"
-            >
-              {syncing ? 'Synchronizacja…' : 'Synchronizuj'}
-            </button>
-            <button
-              onClick={handleClear}
-              className="rounded-xl px-4 py-2 text-sm font-semibold text-rose-300 hover:text-rose-200 underline underline-offset-4"
-            >
-              Wyczyść dzisiaj
-            </button>
-          </div>
-        </div>
-      </footer>
+ <footer className="relative z-10 px-4 md:px-6 mt-6 pb-8">
+  <div
+    className="
+      mx-auto max-w-5xl rounded-2xl border border-white/10 bg-neutral-900/60 backdrop-blur-md shadow-2xl
+      px-5 md:px-8 py-4
+      grid grid-cols-1 gap-3
+      sm:grid-cols-2 sm:items-center sm:gap-4
+      md:flex md:items-center md:justify-between
+    "
+  >
+    <div className="font-semibold text-center sm:text-left">
+      Dziś razem: <span className="tabular-nums">{events.length}</span>
+    </div>
+
+    <div className="flex flex-wrap justify-center sm:justify-end items-center gap-2 sm:gap-3">
+      <button
+        onClick={() => pullFromServer(session.shopId)}
+        className="rounded-xl px-4 py-2 text-xs md:text-sm font-semibold border border-white/10 bg-black/40 hover:bg-black/60"
+        title="Pobierz najnowsze dane z serwera"
+      >
+        Odśwież
+      </button>
+
+      <button
+        onClick={handleSync}
+        disabled={syncing}
+        className="rounded-xl px-4 py-2 text-xs md:text-sm font-semibold bg-white text-black hover:bg-neutral-200 active:scale-[.99] transition disabled:opacity-50"
+      >
+        {syncing ? 'Synchronizacja…' : 'Synchronizuj'}
+      </button>
+
+      <button
+        onClick={handleClear}
+        className="rounded-xl px-4 py-2 text-xs md:text-sm font-semibold text-rose-300 hover:text-rose-200 underline underline-offset-4"
+      >
+        Wyczyść dzisiaj
+      </button>
+    </div>
+  </div>
+</footer>
+
     </main>
   );
 }
