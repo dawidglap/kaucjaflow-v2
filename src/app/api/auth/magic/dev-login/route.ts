@@ -3,32 +3,38 @@ import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 import jwt from 'jsonwebtoken';
 
-const MONGODB_URI = process.env.MONGODB_URI!;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-please-change';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 const COOKIE = 'kf_token';
 
-// ---- NEW: cache globale per il client ----
 declare global {
     // eslint-disable-next-line no-var
-    var _mongoClientPromise: Promise<MongoClient> | undefined;
+    var _kf_mongo_promise: Promise<MongoClient> | undefined;
 }
 
-let clientPromise: Promise<MongoClient>;
-if (!global._mongoClientPromise) {
-    const _client = new MongoClient(MONGODB_URI);
-    global._mongoClientPromise = _client.connect(); // v5: safe/idempotente
+function getClientPromise() {
+    if (!global._kf_mongo_promise) {
+        const uri = process.env.MONGODB_URI;
+        if (!uri) {
+            // Non valutare mai in build-time: viene letto solo quando chiamato in runtime
+            throw new Error('MONGODB_URI is not set');
+        }
+        const client = new MongoClient(uri);
+        global._kf_mongo_promise = client.connect();
+    }
+    return global._kf_mongo_promise!;
 }
-clientPromise = global._mongoClientPromise;
 
 async function getDb() {
-    const client = await clientPromise;
+    const client = await getClientPromise();
     const db = client.db(process.env.MONGODB_DB || 'kaucjaflow');
     return { shops: db.collection('shops'), users: db.collection('users') };
 }
 
-// ---- resto del file invariato ----
 function setSessionCookie(res: NextResponse, payload: any) {
-    const token = jwt.sign(payload, SESSION_SECRET, { expiresIn: '14d' });
+    const secret = process.env.SESSION_SECRET || 'dev-secret-please-change';
+    const token = jwt.sign(payload, secret, { expiresIn: '14d' });
     res.cookies.set({
         name: COOKIE,
         value: token,
@@ -41,6 +47,7 @@ function setSessionCookie(res: NextResponse, payload: any) {
 }
 
 export async function GET(req: Request) {
+    // Proteggi la route in produzione, se ti serve
     if (process.env.NODE_ENV === 'production') {
         return NextResponse.json({ error: 'Not Found' }, { status: 404 });
     }
@@ -75,7 +82,13 @@ export async function GET(req: Request) {
         user = await users.findOne({ _id: user._id });
     }
 
-    const res = NextResponse.redirect(new URL(redirectTo, req.url));
+    // Redirect robusto (supporta assoluto o relativo)
+    const base = new URL(req.url);
+    const target = redirectTo.startsWith('/')
+        ? new URL(redirectTo, base)
+        : new URL(redirectTo);
+
+    const res = NextResponse.redirect(target);
     setSessionCookie(res, { userId: String(user!._id), shopId, role: user!.role, email: user!.email });
     return res;
 }
