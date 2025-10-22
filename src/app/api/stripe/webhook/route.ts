@@ -19,15 +19,16 @@ async function getDb() {
     return { users: db.collection('users') };
 }
 
-// Consideriamo "attivo" se la sub è attiva, in prova o in past_due (grazia)
+// attivo se sub è active/trialing/past_due (grace)
 function activeFromStatus(status?: Stripe.Subscription.Status | null) {
     return status === 'active' || status === 'trialing' || status === 'past_due';
 }
 
+// snapshot metadati utili (compat tipizzata)
 function subSnapshot(s: Stripe.Subscription | null | undefined) {
     if (!s) return {};
     const price = s.items?.data?.[0]?.price?.id;
-    // Alcune versioni dei tipi non includono current_period_end: leggiamolo via any.
+    // con i tipi nuovi leggiamo current_period_end in modo “loose”
     const periodEndUnix = (s as any)?.current_period_end as number | undefined;
 
     return {
@@ -38,13 +39,11 @@ function subSnapshot(s: Stripe.Subscription | null | undefined) {
     };
 }
 
-
 export async function POST(req: Request) {
-    // 1) Verifica firma
+    // 1) verifica firma
     const body = Buffer.from(await req.arrayBuffer());
     const sig = req.headers.get('stripe-signature') || '';
     let event: Stripe.Event;
-
     try {
         event = stripe.webhooks.constructEvent(body, sig, WEBHOOK_SECRET);
     } catch (err: any) {
@@ -57,18 +56,30 @@ export async function POST(req: Request) {
         case 'checkout.session.completed': {
             const s = event.data.object as Stripe.Checkout.Session;
 
-            // Email dal checkout / customer
-            const email =
+            // Email dal checkout / customer (type-safe)
+            let email: string | null =
                 s.customer_details?.email ||
                 s.customer_email ||
-                (typeof s.customer === 'string'
-                    ? (await stripe.customers.retrieve(s.customer))['email']
-                    : null);
+                null;
 
-            const subscriptionId = typeof s.subscription === 'string' ? s.subscription : s.subscription?.id;
-            const customerId = typeof s.customer === 'string' ? s.customer : s.customer?.id;
+            if (!email && typeof s.customer === 'string') {
+                try {
+                    const custResp = await stripe.customers.retrieve(s.customer);
+                    // Narrowing: se è un DeletedCustomer → ha 'deleted: true'
+                    if (!('deleted' in custResp) || custResp.deleted === false) {
+                        email = (custResp as Stripe.Customer).email ?? null;
+                    }
+                } catch {
+                    // ignora – niente email
+                }
+            }
 
-            // Proviamo a espandere la subscription per snapshot stato/periodo
+            const subscriptionId =
+                typeof s.subscription === 'string' ? s.subscription : s.subscription?.id;
+            const customerId =
+                typeof s.customer === 'string' ? s.customer : s.customer?.id;
+
+            // prova a leggere la sub per snapshot
             let sub: Stripe.Subscription | undefined;
             if (subscriptionId) {
                 try {
@@ -82,7 +93,7 @@ export async function POST(req: Request) {
                     {
                         $set: {
                             email: email.toLowerCase(),
-                            active: true, // checkout completato → in genere 'trialing' con trial_end
+                            active: true, // in genere trialing dopo checkout
                             stripeCustomerId: customerId,
                             stripeSubscriptionId: subscriptionId,
                             updatedAt: new Date(),
@@ -98,9 +109,9 @@ export async function POST(req: Request) {
 
         case 'invoice.payment_succeeded': {
             const inv = event.data.object as Stripe.Invoice;
-            const subId = typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id;
+            const subId =
+                typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id;
             if (subId) {
-                // Recupera la sub per avere status aggiornato e period_end
                 let sub: Stripe.Subscription | undefined;
                 try {
                     sub = await stripe.subscriptions.retrieve(subId);
@@ -115,9 +126,9 @@ export async function POST(req: Request) {
 
         case 'invoice.payment_failed': {
             const inv = event.data.object as Stripe.Invoice;
-            const subId = typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id;
+            const subId =
+                typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id;
             if (subId) {
-                // Se fallisce un rinnovo, segniamo non attivo (puoi tenerlo true se concedi più grazia)
                 let sub: Stripe.Subscription | undefined;
                 try {
                     sub = await stripe.subscriptions.retrieve(subId);
@@ -132,7 +143,6 @@ export async function POST(req: Request) {
 
         case 'customer.subscription.updated': {
             const sub = event.data.object as Stripe.Subscription;
-            // Aggiorna in base allo status ufficiale
             await users.updateOne(
                 { stripeSubscriptionId: sub.id },
                 { $set: { active: activeFromStatus(sub.status), updatedAt: new Date(), ...subSnapshot(sub) } }
