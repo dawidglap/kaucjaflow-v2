@@ -234,12 +234,15 @@ const canCheckout = !!email.trim();
   disabled={checkingOut || !canCheckout}
   title={!canCheckout ? 'Wpisz adres e-mail, aby kontynuować' : undefined}
   onClick={startCheckout}
-  className="w-full h-11 rounded-lg border border-white/10 bg-neutral-800 text-white hover:bg-neutral-700 active:scale-[.99] transition disabled:opacity-50 disabled:cursor-not-allowed"
+  className="w-full h-12 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600
+               text-black font-semibold shadow-[0_8px_30px_rgba(16,185,129,0.35)]
+               ring-1 ring-emerald-300 hover:brightness-105 active:translate-y-px
+               transition disabled:opacity-60 disabled:cursor-not-allowed"
 >
   {checkingOut ? 'Przekierowuję…' : 'Kup abonament'}
 </button>
 {!canCheckout && (
-  <p className="text-xs text-neutral-400 text-center">
+  <p className="text-xs  text-green-300 text-center">
     Wpisz adres e-mail, aby kontynuować.
   </p>
 )}

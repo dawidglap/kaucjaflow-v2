@@ -4,7 +4,7 @@ import React from 'react';
 import { motion, useReducedMotion, type MotionProps } from 'framer-motion';
 import { HelpCircle } from 'lucide-react';
 
-export type FAQItem = { q: string; a: string };
+export type FAQItem = { q: string; a: React.ReactNode };
 
 export type FAQProps = {
   eyebrow?: string;     // piccolo titolo sopra
@@ -29,6 +29,23 @@ const DEFAULT_ITEMS: FAQItem[] = [
   {
     q: 'A jeśli operator udostępni swoją apkę?',
     a: 'Bez problemu: eksport CSV/PDF i migrujesz bez bólu.',
+  },
+  // 🆕 Self-service: usunięcie konta i anulowanie subskrypcji
+  {
+    q: 'Jak usunąć konto i anulować abonament?',
+    a: (
+      <>
+        Wystarczy napisać do nas na{' '}
+        <a
+          href="mailto:support@kaucjaflow.pl"
+          className="underline underline-offset-2 hover:opacity-90"
+        >
+          support@kaucjaflow.pl
+        </a>
+        . Nie ma żadnego obowiązku wypowiedzenia — możesz zrezygnować w dowolnym
+        momencie. Do <strong>31.12.2025</strong> korzystasz za darmo.
+      </>
+    ),
   },
 ];
 
@@ -109,7 +126,7 @@ export default function FAQ({
           ))}
         </motion.div>
 
-        {/* Nota micro (opzionale) */}
+        {/* Nota micro */}
         <motion.p
           className="mt-6 text-xs text-gray-600 dark:text-gray-300"
           {...fade(3 + items.length)}
