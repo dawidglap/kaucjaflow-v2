@@ -1,6 +1,6 @@
 // src/app/checkout/success/page.tsx
 
-import SuccessClient from "../checkout/success/SuccessClient";
+import SuccessClient from "../checkout/success/page";
 
 
 export default function Page({
