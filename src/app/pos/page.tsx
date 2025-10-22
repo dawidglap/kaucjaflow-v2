@@ -68,11 +68,16 @@ if (missingShop) {
         try {
           const s = await fetch(`/api/shops/${j.session.shopId}`, { cache: 'no-store' });
           const sj = (await s.json().catch(() => ({}))) as ShopInfo;
-      if (sj?.ok && typeof sj.name === 'string' && sj.name.trim()) {
+          if (sj?.ok && typeof sj.name === 'string' && sj.name.trim()) {
   setShopName(sj.name.trim());
 } else {
   setShopName('Sklep'); // fallback sicuro
 }
+        } catch {
+          setShopName('Sklep'); // offline/fallback
+        }
+
+
 
 
         // 6) prima sincronizzazione (pull)
