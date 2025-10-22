@@ -5,7 +5,7 @@ import { MongoClient } from 'mongodb';
 
 export const runtime = 'nodejs';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2025-09-30.clover' });
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
 const MONGODB_URI = process.env.MONGODB_URI!;
 const DB_NAME = process.env.MONGODB_DB || 'kaucjaflow';
