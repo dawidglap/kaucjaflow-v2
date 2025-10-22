@@ -140,7 +140,7 @@ export default function WhyNow({
           {...fade(2)}
         >
           System kaucji działa od <strong>{startDate}</strong>. Zobacz w wideo poniżej,
-          jak przygotować kasę w 10 minut — bez kolejek i chaosu.
+          jak przygotować kasę w 3 minuty — bez kolejek i chaosu.
         </motion.p>
 
         {/* Video Card */}

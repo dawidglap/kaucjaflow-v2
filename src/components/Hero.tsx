@@ -18,8 +18,8 @@ export type HeroProps = {
 export default function Hero({
 badge="⚡ Od 1.10.2025 — zero czasu na błędy",
 title="Kaucje wchodzą. Twój sklep musi działać szybko — albo utknie w chaosie.",
-subtitle="Przygotuj kasjerów w 10 minut. Bez POS-ów, bez papierów, bez stresu.",
-ctaLabel="Załóż darmowe konto →",
+subtitle="Przygotuj kasjerów w 3 minuty. Bez POS-ów, bez papierów, bez stresu.",
+ctaLabel="Załóż konto GRATIS",
 secondary="Już 300+ sklepów działa z KaucjaFlow. Nie czekaj do ostatniej chwili.",
 
   ctaHref = '/login',
