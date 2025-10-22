@@ -24,7 +24,11 @@ export default function Home() {
 
       <main>
         <Hero />
-        <WhyNow />
+        <WhyNow
+  posterSrc="/images/kaucjaflow-poster-16x9.jpg"
+  posterVerticalSrc="/images/kaucjaflow-poster-9x16.jpg"
+/>
+
         <MythBuster />
         <BigPromise />
         <Proof />
