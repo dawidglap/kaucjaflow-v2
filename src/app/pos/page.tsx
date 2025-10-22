@@ -42,17 +42,21 @@ export default function PosPage() {
 
         if (cancelled) return;
 
-        // 1) non loggato -> login
-        if (!j?.loggedIn || !j.session) {
-          router.replace('/login');
-          return;
-        }
+   // 1) non loggato -> login
+if (!j?.loggedIn || !j.session) {
+  router.replace('/login');
+  return;
+}
 
-        // 2) manca lo shop -> /register
-        if (!j.session.shopId) {
-          router.replace('/register');
-          return;
-        }
+// 2) manca lo shop -> /register (check robusto)
+const sid = j.session.shopId as any;
+const missingShop =
+  !sid || sid === 'undefined' || sid === 'null' || (typeof sid === 'string' && sid.trim() === '');
+if (missingShop) {
+  router.replace('/register');
+  return;
+}
+
 
         // 3) ok: set session
         setSession(j.session);
@@ -64,11 +68,12 @@ export default function PosPage() {
         try {
           const s = await fetch(`/api/shops/${j.session.shopId}`, { cache: 'no-store' });
           const sj = (await s.json().catch(() => ({}))) as ShopInfo;
-          if (sj?.ok && sj.name) setShopName(sj.name);
-          else setShopName('Sklep'); // fallback
-        } catch {
-          setShopName('Sklep'); // offline/fallback
-        }
+      if (sj?.ok && typeof sj.name === 'string' && sj.name.trim()) {
+  setShopName(sj.name.trim());
+} else {
+  setShopName('Sklep'); // fallback sicuro
+}
+
 
         // 6) prima sincronizzazione (pull)
         await pullFromServer(j.session.shopId);
