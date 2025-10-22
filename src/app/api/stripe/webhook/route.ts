@@ -26,14 +26,18 @@ function activeFromStatus(status?: Stripe.Subscription.Status | null) {
 
 function subSnapshot(s: Stripe.Subscription | null | undefined) {
     if (!s) return {};
-    const price = (s.items?.data?.[0]?.price?.id) ?? undefined;
+    const price = s.items?.data?.[0]?.price?.id;
+    // Alcune versioni dei tipi non includono current_period_end: leggiamolo via any.
+    const periodEndUnix = (s as any)?.current_period_end as number | undefined;
+
     return {
         stripeStatus: s.status,
         stripeCancelAtPeriodEnd: s.cancel_at_period_end ?? false,
-        stripeCurrentPeriodEnd: s.current_period_end ? new Date(s.current_period_end * 1000) : undefined,
+        stripeCurrentPeriodEnd: periodEndUnix ? new Date(periodEndUnix * 1000) : undefined,
         stripePriceId: price,
     };
 }
+
 
 export async function POST(req: Request) {
     // 1) Verifica firma
