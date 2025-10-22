@@ -24,6 +24,53 @@ async function getDb() {
     };
 }
 
+function renderWelcomeEmail(loginUrl: string) {
+    const pre = 'Witamy w KaucjaFlow! Dostęp jest aktywny. Zaloguj się jednym kliknięciem.';
+    return `<!doctype html><html lang="pl"><head><meta charset="utf-8">
+<meta name="x-apple-disable-message-reformatting"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KaucjaFlow – witamy!</title>
+<style>@media (max-width:600px){.container{width:100%!important}.btn{width:100%!important}}</style>
+</head><body style="margin:0;padding:0;background-color:#f6f7f9;">
+<div style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0;color:transparent;">${pre}</div>
+<table role="presentation" width="100%" style="background-color:#f6f7f9;padding:24px 0;">
+<tr><td align="center"><table role="presentation" width="600" class="container" style="width:600px;max-width:100%;">
+<tr><td style="padding:16px 24px;text-align:left;">
+  <img src="${EMAIL_LOGO_URL}" width="160" height="48" alt="KaucjaFlow" style="display:block;height:auto;border:0;outline:none;text-decoration:none;">
+</td></tr>
+<tr><td style="padding:0 24px 24px 24px;">
+  <table role="presentation" width="100%" style="background:#fff;border-radius:12px;border:1px solid #e7e8eb;">
+    <tr><td style="padding:28px 24px 8px 24px;"><h1 style="margin:0;font-size:20px;line-height:28px;color:#0f1720;font-weight:700;">Witamy w KaucjaFlow 🎉</h1></td></tr>
+    <tr><td style="padding:4px 24px 16px 24px;"><p style="margin:0;font-size:14px;line-height:20px;color:#48505e;">
+      Dostęp został aktywowany. Zaloguj się – użyj swojego adresu e-mail i wybierz „Wyślij magic link”.</p></td></tr>
+    <tr><td style="padding:8px 24px;">
+      <table role="presentation" class="btn" style="border-collapse:separate;"><tr>
+        <td align="center" bgcolor="#111111" style="border-radius:10px;">
+          <a href="${loginUrl}" target="_blank" rel="noopener noreferrer"
+             style="display:inline-block;padding:12px 20px;font-size:14px;line-height:20px;color:#ffffff;text-decoration:none;font-weight:600;border-radius:10px;background:#111111;">
+             Zaloguj się
+          </a>
+        </td>
+      </tr></table>
+    </td></tr>
+    <tr><td style="padding:8px 24px;"><p style="margin:0;font-size:12px;line-height:18px;color:#6b7280;">Wsparcie: support@kaucjaflow.pl</p></td></tr>
+  </table>
+</td></tr>
+</table></td></tr>
+</table></body></html>`;
+}
+
+function renderWelcomeText(loginUrl: string) {
+    return [
+        'Witamy w KaucjaFlow!',
+        '',
+        'Dostęp został aktywny. Zaloguj się pod poniższym adresem:',
+        loginUrl,
+        '',
+        'Użyj swojego adresu e-mail i wybierz „Wyślij magic link”.',
+    ].join('\n');
+}
+
+
 const genToken = () => crypto.randomBytes(24).toString('base64url');
 
 // ---------------- Email template (HTML + TEXT) ----------------
@@ -198,17 +245,18 @@ export async function POST(req: Request) {
     }
 
     // 🔒 Verifica abbonamento attivo
+    // 🔒 Verifica/Provisioning utente (con invito admin)
     let user = await users.findOne({ email: emailLc });
-    if (!user || user.active !== true) {
-        const isAdminInvite = !!shopName; // se viene da /admin/invite
-        if (!DEV && !isAdminInvite) {
-            return NextResponse.json(
-                { ok: false, error: 'INVITE_REQUIRED' },
-                { status: 403 }
-            );
-        }
 
-        // in DEV possiamo autoprovisionare
+    const isAdminInvite = !!shopName;   // /admin/invite passa shopName
+    let justCreated = false;
+    let activatedNow = false;
+
+    if (!user) {
+        if (!DEV && !isAdminInvite) {
+            return NextResponse.json({ ok: false, error: 'INVITE_REQUIRED' }, { status: 403 });
+        }
+        // crea shop se serve
         const wantedShop = (shopName && String(shopName)) || 'Shop 1';
         let shop = await shops.findOne({ name: wantedShop });
         if (!shop) {
@@ -220,11 +268,48 @@ export async function POST(req: Request) {
             email: emailLc,
             role: userRole,
             shopId: String(shop!._id),
-            active: true,
+            active: true,               // attivo per invito admin
+            welcomeSent: false,         // flag anti-doppione
             createdAt: new Date(),
+            updatedAt: new Date(),
         });
         user = await users.findOne({ _id: insUser.insertedId });
+        justCreated = true;
+    } else {
+        // utente già esiste: se arriva invito admin e non è attivo → attivalo ora
+        if (isAdminInvite && user.active !== true) {
+            await users.updateOne({ _id: user._id }, { $set: { active: true, updatedAt: new Date() } });
+            user = await users.findOne({ _id: user._id });
+            activatedNow = true;
+        }
     }
+
+    // ✉️ Welcome solo per invito admin (una volta sola)
+    if (
+        isAdminInvite &&
+        RESEND_API_KEY &&
+        (justCreated || activatedNow || !user?.welcomeSent)
+    ) {
+        try {
+            const resend = new Resend(RESEND_API_KEY);
+            await resend.emails.send({
+                from: 'KaucjaFlow <welcome@kaucjaflow.pl>',
+                to: [emailLc],
+                subject: 'Witamy w KaucjaFlow – dostęp aktywny',
+                html: renderWelcomeEmail(`${APP_BASE_URL}/login`),
+                text: renderWelcomeText(`${APP_BASE_URL}/login`),
+                headers: { 'X-KF-Event': 'admin.invite' },
+            });
+            await users.updateOne(
+                { _id: user!._id },
+                { $set: { welcomeSent: true, updatedAt: new Date() } }
+            );
+        } catch (e) {
+            console.error('[WELCOME EMAIL INVITE ERROR]', e);
+        }
+    }
+
+
 
     // Safety: in produzione prendiamo shop/role dall’utente
     const shopId = String(user!.shopId);

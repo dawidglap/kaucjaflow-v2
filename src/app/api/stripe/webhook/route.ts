@@ -4,11 +4,25 @@ import Stripe from 'stripe';
 import { MongoClient } from 'mongodb';
 import { Resend } from 'resend';
 
+
+
+// ⬇️ aggiungi sotto gli import già presenti
 const APP_BASE_URL =
     process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://partners.kaucjaflow.pl';
 const EMAIL_LOGO_URL =
     process.env.EMAIL_LOGO_URL || `${APP_BASE_URL}/images/logo-email.png`;
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+
+function isDeletedCustomer(x: any): x is Stripe.DeletedCustomer {
+    return !!x && typeof x === 'object' && x.deleted === true;
+}
+
+function getTrialEndDate(sub?: Stripe.Subscription | undefined): Date | null {
+    const unix = sub && (sub as any)?.trial_end;
+    return typeof unix === 'number' ? new Date(unix * 1000) : null;
+}
+
+
 
 function fmtDate(d?: Date | null) {
     if (!d) return null;
@@ -197,24 +211,61 @@ export async function POST(req: Request) {
         case 'checkout.session.completed': {
             const s = event.data.object as Stripe.Checkout.Session;
 
-            // Email from checkout or customer (type-safe + loose unwrap)
+            // 1) prendi email dal checkout o dal customer (fallback)
             let email: string | null =
                 s.customer_details?.email ||
                 s.customer_email ||
                 null;
 
-            // ...dopo l'upsert su users
+            if (!email && typeof s.customer === 'string') {
+                try {
+                    const resp = await stripe.customers.retrieve(s.customer);
+                    if (!isDeletedCustomer(resp)) {
+                        email = resp.email ?? null;
+                    }
+                } catch {
+                    // ignore
+                }
+            }
+
+            // 2) id sub e customer
+            const subscriptionId =
+                typeof s.subscription === 'string' ? s.subscription : s.subscription?.id;
+            const customerId =
+                typeof s.customer === 'string' ? s.customer : s.customer?.id;
+
+            // 3) snapshot sub per trial_end / stato
+            let sub: Stripe.Subscription | undefined;
+            if (subscriptionId) {
+                try {
+                    sub = await stripe.subscriptions.retrieve(subscriptionId);
+                } catch { /* ignore */ }
+            }
+            const trialEndDate = getTrialEndDate(sub);
+
+            // 4) upsert utente
+            if (email) {
+                await users.updateOne(
+                    { email: email.toLowerCase() },
+                    {
+                        $set: {
+                            email: email.toLowerCase(),
+                            active: true, // dopo checkout → in genere 'trialing'
+                            stripeCustomerId: customerId,
+                            stripeSubscriptionId: subscriptionId,
+                            updatedAt: new Date(),
+                            ...subSnapshot(sub),
+                        },
+                        $setOnInsert: { createdAt: new Date(), role: 'cashier', shops: [] },
+                    },
+                    { upsert: true }
+                );
+            }
+
+            // 5) invia welcome (se c’è email e abbiamo chiave Resend)
             if (email && RESEND_API_KEY) {
                 try {
                     const resend = new Resend(RESEND_API_KEY);
-
-                    // prova a dedurre data fine trial
-                    let trialEndDate: Date | null = null;
-                    if (sub && (sub as any)?.trial_end) {
-                        const unix = Number((sub as any).trial_end);
-                        if (!Number.isNaN(unix)) trialEndDate = new Date(unix * 1000);
-                    }
-
                     await resend.emails.send({
                         from: 'KaucjaFlow <welcome@kaucjaflow.pl>',
                         to: [email],
@@ -228,38 +279,9 @@ export async function POST(req: Request) {
                 }
             }
 
-
-            const subscriptionId =
-                typeof s.subscription === 'string' ? s.subscription : s.subscription?.id;
-            const customerId =
-                typeof s.customer === 'string' ? s.customer : s.customer?.id;
-
-            let sub: Stripe.Subscription | undefined;
-            if (subscriptionId) {
-                try {
-                    sub = await stripe.subscriptions.retrieve(subscriptionId);
-                } catch { }
-            }
-
-            if (email) {
-                await users.updateOne(
-                    { email: email.toLowerCase() },
-                    {
-                        $set: {
-                            email: email.toLowerCase(),
-                            active: true, // after checkout, usually 'trialing'
-                            stripeCustomerId: customerId,
-                            stripeSubscriptionId: subscriptionId,
-                            updatedAt: new Date(),
-                            ...subSnapshot(sub),
-                        },
-                        $setOnInsert: { createdAt: new Date(), role: 'cashier', shops: [] },
-                    },
-                    { upsert: true }
-                );
-            }
             break;
         }
+
 
         case 'invoice.payment_succeeded': {
             const inv = event.data.object as Stripe.Invoice;
