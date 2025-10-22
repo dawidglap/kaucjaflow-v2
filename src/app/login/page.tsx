@@ -14,6 +14,9 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+const [checkingOut, setCheckingOut] = useState(false);
+const canCheckout = !!email.trim();
+
 
   async function sendMagicLink() {
     setSubmitting(true);
@@ -50,6 +53,31 @@ export default function LoginPage() {
       setSubmitting(false);
     }
   }
+
+  async function startCheckout() {
+  if (!email) return;
+  setCheckingOut(true);
+  setErr(null);
+  setInfo(null);
+  try {
+    const r = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.url) {
+      setErr(typeof j?.error === 'string' ? j.error : 'Nie udało się utworzyć płatności.');
+    } else {
+      window.location.href = j.url; // → Stripe Checkout
+    }
+  } catch {
+    setErr('Nieoczekiwany błąd sieci.');
+  } finally {
+    setCheckingOut(false);
+  }
+}
+
 
   function devLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -188,14 +216,35 @@ export default function LoginPage() {
             {info && <p className="text-sm text-emerald-300">{info}</p>}
             {err && <p className="text-sm text-rose-400">{err}</p>}
 
-            <button
-              type="button"
-              disabled={submitting || !email}
-              onClick={sendMagicLink}
-              className="w-full h-11 rounded-lg bg-white text-black font-medium hover:bg-neutral-200 active:scale-[.99] transition disabled:opacity-50"
-            >
-              {submitting ? 'Wysyłam…' : 'Wyślij magic link'}
-            </button>
+       <button
+  type="button"
+  disabled={submitting || !canCheckout}
+  title={!canCheckout ? 'Wpisz adres e-mail' : undefined}
+  onClick={sendMagicLink}
+  className="w-full h-11 rounded-lg bg-white text-black font-medium hover:bg-neutral-200 active:scale-[.99] transition disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  {submitting ? 'Wysyłam…' : 'Wyślij magic link'}
+</button>
+
+            <p className="text-xs text-neutral-400 text-center">
+  Nie masz jeszcze dostępu? Kup abonament (29 PLN/mies., gratis do 31.12.2025).
+</p>
+<button
+  type="button"
+  disabled={checkingOut || !canCheckout}
+  title={!canCheckout ? 'Wpisz adres e-mail, aby kontynuować' : undefined}
+  onClick={startCheckout}
+  className="w-full h-11 rounded-lg border border-white/10 bg-neutral-800 text-white hover:bg-neutral-700 active:scale-[.99] transition disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  {checkingOut ? 'Przekierowuję…' : 'Kup abonament'}
+</button>
+{!canCheckout && (
+  <p className="text-xs text-neutral-400 text-center">
+    Wpisz adres e-mail, aby kontynuować.
+  </p>
+)}
+
+
 
             <p className="text-xs text-neutral-500">
               Logując się, akceptujesz nasze{' '}

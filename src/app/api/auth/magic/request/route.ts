@@ -197,13 +197,18 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: 'RATE_LIMITED' }, { status: 429 });
     }
 
-    // 1) Gating inviti (no auto-provision in prod)
+    // 🔒 Verifica abbonamento attivo
     let user = await users.findOne({ email: emailLc });
-    if (!user) {
-        if (!DEV) {
-            return NextResponse.json({ ok: false, error: 'INVITE_REQUIRED' }, { status: 403 });
+    if (!user || user.active !== true) {
+        const isAdminInvite = !!shopName; // se viene da /admin/invite
+        if (!DEV && !isAdminInvite) {
+            return NextResponse.json(
+                { ok: false, error: 'INVITE_REQUIRED' },
+                { status: 403 }
+            );
         }
-        // DEV provisioning opzionale
+
+        // in DEV possiamo autoprovisionare
         const wantedShop = (shopName && String(shopName)) || 'Shop 1';
         let shop = await shops.findOne({ name: wantedShop });
         if (!shop) {
@@ -236,7 +241,7 @@ export async function POST(req: Request) {
         role: finalRole,
         email: emailLc,
         createdAt: new Date(),
-        expiresAt, // TTL index lato DB raccomandato
+        expiresAt,
         used: false,
     });
 
@@ -258,7 +263,6 @@ export async function POST(req: Request) {
             html: renderMagicEmail(verifyUrl),
             text: renderMagicText(verifyUrl),
             headers: {
-                // utile per correlare i log
                 'X-KF-Magic-Token': token,
             },
         });
