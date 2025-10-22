@@ -13,7 +13,7 @@ export type OfferFeaturesProps = {
   className?: string;
 };
 
-const DEFAULT_FEATURES: OfferFeaturesProps['features'] = [
+const DEFAULT_FEATURES: NonNullable<OfferFeaturesProps['features']> = [
   { icon: LayoutGrid, text: 'Aplikacja POS-like: pełny ekran, ciemny tryb, duże przyciski.' },
   { icon: WifiOff, text: 'Offline-first: działa bez internetu, synchronizacja po powrocie sieci.' },
   { icon: FileDown, text: 'Raporty: CSV/PDF dzienny/miesięczny – 1 klik.' },
@@ -26,7 +26,7 @@ const DEFAULT_FEATURES: OfferFeaturesProps['features'] = [
 
 export default function OfferFeatures({
   title = 'Co dostajesz',
-  features = DEFAULT_FEATURES,
+  features,
   className,
 }: OfferFeaturesProps) {
   const prefersReduce = useReducedMotion();
@@ -36,6 +36,9 @@ export default function OfferFeatures({
     animate: { opacity: 1, y: 0 },
     transition: { delay: 0.06 * i, duration: prefersReduce ? 0.35 : 0.5 },
   });
+
+  // ✅ Garantisce un array non-undefined
+  const items = features ?? DEFAULT_FEATURES;
 
   return (
     <section
@@ -65,7 +68,7 @@ export default function OfferFeatures({
           className="mt-8 grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4"
           {...fade(1)}
         >
-          {features.map((f, i) => {
+          {items.map((f, i) => {
             const Icon = f.icon ?? LayoutGrid;
             return (
               <li
