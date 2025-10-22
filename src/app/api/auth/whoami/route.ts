@@ -20,16 +20,10 @@ export async function GET(req: Request) {
             userId: string; shopId?: string; role: 'admin' | 'cashier'; email: string;
         };
 
-        // 🔧 normalizza shopId
-        let shopId: string | null = (p as any).shopId ?? null;
-        if (
-            !shopId ||
-            shopId === 'undefined' ||
-            shopId === 'null' ||
-            (typeof shopId === 'string' && shopId.trim() === '')
-        ) {
-            shopId = null;
-        }
+        let shopId: string | null =
+            !p.shopId || p.shopId === 'undefined' || p.shopId === 'null' || p.shopId.trim() === ''
+                ? null
+                : p.shopId;
 
         return NextResponse.json({
             loggedIn: true,

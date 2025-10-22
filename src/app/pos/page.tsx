@@ -49,13 +49,15 @@ if (!j?.loggedIn || !j.session) {
 }
 
 // 2) manca lo shop -> /register (check robusto)
-const sid = j.session.shopId as any;
+// 2) manca lo shop -> /register (check robusto)
+const sid: any = j.session.shopId;
 const missingShop =
   !sid || sid === 'undefined' || sid === 'null' || (typeof sid === 'string' && sid.trim() === '');
 if (missingShop) {
   router.replace('/register');
   return;
 }
+
 
 
         // 3) ok: set session

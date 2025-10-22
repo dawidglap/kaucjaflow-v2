@@ -8,8 +8,8 @@ import { useState } from 'react';
 export default function RegisterShopPage() {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,13 +26,14 @@ export default function RegisterShopPage() {
       const r = await fetch('/api/shops/register', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        credentials: 'include', // wysyła cookie kf_token
         body: JSON.stringify({ name: trimmed }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.ok) {
         throw new Error(j?.error || 'Nie udało się zapisać nazwy sklepu.');
       }
-      router.replace('/pos'); // pierwsze wejście do kasy po rejestracji
+      router.replace('/pos'); // prosto do kasy po rejestracji
     } catch (e: any) {
       setErr(e?.message || 'Wystąpił nieoczekiwany błąd.');
     } finally {
@@ -52,7 +53,7 @@ export default function RegisterShopPage() {
       {/* Overlay */}
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-black/60" />
 
-      {/* Logo (tak jak w /login) */}
+      {/* Logo (jak w /login) */}
       <div className="absolute top-6 left-6 z-20">
         <Link href="/" className="inline-flex items-center gap-3" aria-label="KaucjaFlow — Strona główna">
           <span className="relative block h-6 w-[132px]">
@@ -94,7 +95,7 @@ export default function RegisterShopPage() {
           <div className="px-8 pt-8 text-center">
             <h1 className="text-2xl font-semibold tracking-tight text-white">Nazwij swój sklep</h1>
             <p className="mt-1 text-sm text-neutral-400">
-              Zostałeś przekierowany tutaj po pierwszej płatności, aby uzupełnić nazwę sklepu.
+              Trafiłeś tutaj tylko po pierwszej płatności — uzupełnij nazwę sklepu.
               
             </p>
           </div>
@@ -113,7 +114,7 @@ export default function RegisterShopPage() {
                 className="w-full h-11 rounded-lg border border-white/10 bg-black/40 text-white placeholder:text-neutral-500 px-3 outline-none focus:ring-2 focus:ring-white/20"
               />
               <p className="mt-1 text-xs text-neutral-500">
-                To pole pojawia się tylko raz po opłaceniu — potem przejdziesz bezpośrednio do kasy.
+                To krótkie ustawienie pojawia się tylko raz — potem przejdziesz bezpośrednio do kasy.
               </p>
             </div>
 
@@ -129,8 +130,8 @@ export default function RegisterShopPage() {
 
             <p className="text-xs text-neutral-500">
               Kontynuując, akceptujesz{' '}
-              <Link href="/legal/terms" className="underline decoration-dotted">Regulamin</Link>{' '}
-              i{' '}
+              <Link href="/legal/terms" className="underline decoration-dotted">Regulamin</Link>
+              {' '}oraz{' '}
               <Link href="/legal/privacy" className="underline decoration-dotted">Politykę prywatności</Link>.
             </p>
           </form>
