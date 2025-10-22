@@ -2,6 +2,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   addEvent,
   allToday,
@@ -11,6 +12,49 @@ import {
   type LocalEvent,
   type EventType,
 } from '../../../lib/idb';
+
+
+type Who = { ok: boolean; email: string; role?: string; shopId?: string | null; shopName?: string | null };
+
+export default function PosPage() {
+  const router = useRouter();
+  const [who, setWho] = useState<Who | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/auth/whoami', { cache: 'no-store' });
+        const j = (await r.json()) as Who;
+        if (cancelled) return;
+        setWho(j);
+        // 1) non loggato?
+        if (!j?.ok) {
+          router.replace('/login');
+          return;
+        }
+        // 2) manca lo shop? vai a /register
+        if (!j.shopId) {
+          router.replace('/register');
+          return;
+        }
+      } catch {
+        if (!cancelled) router.replace('/login');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [router]);
+
+  // Evita flicker/undefined mentre verifichi
+  if (loading || !who?.ok || !who.shopId) {
+    return null; // o uno skeleton minimal
+  }
+
+  // A questo punto SEI sicuro di avere shopId & (opz.) shopName
+  const shopName = who.shopName ?? '—';
 
 export default function PosPage() {
   const [loading, setLoading] = useState(true);
