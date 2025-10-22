@@ -65,14 +65,21 @@ export async function POST(req: Request) {
             if (!email && typeof s.customer === 'string') {
                 try {
                     const custResp = await stripe.customers.retrieve(s.customer);
-                    // Narrowing: se è un DeletedCustomer → ha 'deleted: true'
-                    if (!('deleted' in custResp) || custResp.deleted === false) {
-                        email = (custResp as Stripe.Customer).email ?? null;
+                    // unwrap Response<T> safely
+                    const cust: any = custResp as any;
+
+                    // If it's a DeletedCustomer, it will have { deleted: true }
+                    if (cust && cust.deleted === true) {
+                        // deleted, no email available
+                        email = null;
+                    } else {
+                        email = (cust as Stripe.Customer).email ?? null;
                     }
                 } catch {
-                    // ignora – niente email
+                    // ignore – leave email as null
                 }
             }
+
 
             const subscriptionId =
                 typeof s.subscription === 'string' ? s.subscription : s.subscription?.id;
