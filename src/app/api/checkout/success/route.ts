@@ -1,3 +1,4 @@
+// src/app/api/checkout/success/route.ts
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
@@ -32,11 +33,12 @@ export async function GET(req: Request) {
             subscriptionStatus: status,
             amountTotal: session.amount_total,
             currency: session.currency,
-            lineItems: session.line_items?.data?.map((li) => ({
-                qty: li.quantity,
-                priceId: li.price?.id,
-                productName: (li.price?.product as any)?.name,
-            })) ?? [],
+            lineItems:
+                session.line_items?.data?.map((li) => ({
+                    qty: li.quantity,
+                    priceId: li.price?.id,
+                    productName: (li.price?.product as any)?.name,
+                })) ?? [],
         });
     } catch (e: any) {
         console.error('Success API error:', e);
