@@ -1,4 +1,5 @@
 'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
@@ -13,52 +14,18 @@ import {
   type EventType,
 } from '../../../lib/idb';
 
+// ---- TIPI in base alla TUA /api/auth/whoami ----
+type Session = { email: string; role: 'admin' | 'cashier' | string; shopId: string };
+type Whoami = { loggedIn: boolean; session?: Session };
 
-type Who = { ok: boolean; email: string; role?: string; shopId?: string | null; shopName?: string | null };
+// (opzionale) shape di /api/shops/[id]
+type ShopInfo = { ok: boolean; name?: string | null };
 
 export default function PosPage() {
   const router = useRouter();
-  const [who, setWho] = useState<Who | null>(null);
+
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch('/api/auth/whoami', { cache: 'no-store' });
-        const j = (await r.json()) as Who;
-        if (cancelled) return;
-        setWho(j);
-        // 1) non loggato?
-        if (!j?.ok) {
-          router.replace('/login');
-          return;
-        }
-        // 2) manca lo shop? vai a /register
-        if (!j.shopId) {
-          router.replace('/register');
-          return;
-        }
-      } catch {
-        if (!cancelled) router.replace('/login');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [router]);
-
-  // Evita flicker/undefined mentre verifichi
-  if (loading || !who?.ok || !who.shopId) {
-    return null; // o uno skeleton minimal
-  }
-
-  // A questo punto SEI sicuro di avere shopId & (opz.) shopName
-  const shopName = who.shopName ?? '—';
-
-export default function PosPage() {
-  const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<{ email: string; role: string; shopId: string } | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [shopName, setShopName] = useState<string>('Sklep');
   const [events, setEvents] = useState<LocalEvent[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -66,30 +33,52 @@ export default function PosPage() {
 
   // bootstrap session + local events + first pull
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
-      const r = await fetch('/api/auth/whoami', { cache: 'no-store', credentials: 'same-origin' });
-      const j = await r.json();
-      if (!j?.loggedIn) {
-        window.location.href = '/login';
-        return;
-      }
-      setSession(j.session);
-      setEvents(await allToday(j.session.shopId));
-
-      // fetch shop name (uses your new /api/shops/[id])
       try {
-        const s = await fetch(`/api/shops/${j.session.shopId}`, { cache: 'no-store' });
-        const sj = await s.json().catch(() => ({}));
-        if (sj?.ok && sj.name) setShopName(sj.name as string);
-        else setShopName(j.session.shopId); // fallback (pilot)
-      } catch {
-        setShopName(j.session.shopId); // offline/fallback
-      }
+        const r = await fetch('/api/auth/whoami', { cache: 'no-store', credentials: 'same-origin' });
+        const j = (await r.json()) as Whoami;
 
-      await pullFromServer(j.session.shopId);
-      setLoading(false);
+        if (cancelled) return;
+
+        // 1) non loggato -> login
+        if (!j?.loggedIn || !j.session) {
+          router.replace('/login');
+          return;
+        }
+
+        // 2) manca lo shop -> /register
+        if (!j.session.shopId) {
+          router.replace('/register');
+          return;
+        }
+
+        // 3) ok: set session
+        setSession(j.session);
+
+        // 4) carica eventi locali
+        setEvents(await allToday(j.session.shopId));
+
+        // 5) nome negozio (se hai /api/shops/[id])
+        try {
+          const s = await fetch(`/api/shops/${j.session.shopId}`, { cache: 'no-store' });
+          const sj = (await s.json().catch(() => ({}))) as ShopInfo;
+          if (sj?.ok && sj.name) setShopName(sj.name);
+          else setShopName('Sklep'); // fallback
+        } catch {
+          setShopName('Sklep'); // offline/fallback
+        }
+
+        // 6) prima sincronizzazione (pull)
+        await pullFromServer(j.session.shopId);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
-  }, []);
+
+    return () => { cancelled = true; };
+  }, [router]);
 
   async function pullFromServer(shopId: string) {
     try {
@@ -106,7 +95,7 @@ export default function PosPage() {
         }))
       );
 
-      // backfill local ids that server doesn't know yet
+      // backfill locali che il server non conosce
       const serverIds = new Set(
         j.events.map((e: any) => String(e.client_event_id ?? e.clientEventId ?? '')).filter(Boolean)
       );
@@ -131,7 +120,7 @@ export default function PosPage() {
 
       setEvents(await allToday(shopId));
     } catch {
-      // offline / błąd → ignoruj
+      // offline / errore -> ignora
     }
   }
 
@@ -159,13 +148,13 @@ export default function PosPage() {
           events: unsynced.map((e) => ({
             type: e.type,
             ts: e.ts,
-            client_event_id: e.id, // unikalne w sklepie
+            client_event_id: e.id, // univoco locale
           })),
         }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j?.ok) {
-        console.warn('[sync] błąd', j);
+        console.warn('[sync] error', j);
         return;
       }
 
@@ -205,7 +194,7 @@ export default function PosPage() {
       window.removeEventListener('online', onOnline);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [session?.shopId]);
+  }, [session?.shopId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = events.reduce(
     (acc, e) => ({ ...acc, [e.type]: (acc[e.type] || 0) + 1 }),
@@ -214,7 +203,8 @@ export default function PosPage() {
   const unsyncedCount = events.filter((e) => !e.synced).length;
   const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
-  if (loading) {
+  // Loader/redirect guard per evitare flicker/undefined
+  if (loading || !session) {
     return (
       <main
         className="min-h-[100svh] grid place-items-center text-white relative"
@@ -229,7 +219,6 @@ export default function PosPage() {
       </main>
     );
   }
-  if (!session) return null;
 
   const roleLabel = session.role === 'admin' ? 'admin' : 'cashier';
 
@@ -247,28 +236,28 @@ export default function PosPage() {
 
       {/* LOGO */}
       <div className="absolute top-6 left-6 z-20">
-      <Link href="/" className="inline-flex items-center gap-3" aria-label="KaucjaFlow — Strona główna">
-  <span className="relative block h-6 w-[132px]">
-    {/* Light mode */}
-    <Image
-      src="/images/logo-light.png"
-      alt="KaucjaFlow"
-      fill
-      sizes="132px"
-      className="object-contain block dark:hidden"
-      priority
-    />
-    {/* Dark mode */}
-    <Image
-      src="/images/logo-dark.png"
-      alt="KaucjaFlow"
-      fill
-      sizes="132px"
-      className="object-contain hidden dark:block"
-      priority
-    />
-  </span>
-</Link>
+        <Link href="/" className="inline-flex items-center gap-3" aria-label="KaucjaFlow — Strona główna">
+          <span className="relative block h-6 w-[132px]">
+            {/* Light mode */}
+            <Image
+              src="/images/logo-light.png"
+              alt="KaucjaFlow"
+              fill
+              sizes="132px"
+              className="object-contain block dark:hidden"
+              priority
+            />
+            {/* Dark mode */}
+            <Image
+              src="/images/logo-dark.png"
+              alt="KaucjaFlow"
+              fill
+              sizes="132px"
+              className="object-contain hidden dark:block"
+              priority
+            />
+          </span>
+        </Link>
       </div>
 
       {/* HEADER glass */}
@@ -326,7 +315,7 @@ export default function PosPage() {
             <div className="h-full w-full grid place-items-center p-6">
               <div className="text-center">
                 <div className="text-xs uppercase tracking-wide opacity-85">Dodaj</div>
-                <div className="mt-1 text-4xl  font-extrabold">PLASTIK</div>
+                <div className="mt-1 text-4xl font-extrabold">PLASTIK</div>
                 <div className="mt-2 text-3xl opacity-90 tabular-nums">({counts.PLASTIC || 0})</div>
               </div>
             </div>
@@ -345,7 +334,7 @@ export default function PosPage() {
             <div className="h-full w-full grid place-items-center p-6">
               <div className="text-center">
                 <div className="text-xs uppercase tracking-wide text-white/90">Dodaj</div>
-                <div className="mt-1 text-4xl  font-extrabold">SZKŁO</div>
+                <div className="mt-1 text-4xl font-extrabold">SZKŁO</div>
                 <div className="mt-2 text-3xl text-white/95 tabular-nums">({counts.SZKLO || 0})</div>
               </div>
             </div>
@@ -364,7 +353,7 @@ export default function PosPage() {
             <div className="h-full w-full grid place-items-center p-6">
               <div className="text-center">
                 <div className="text-xs uppercase tracking-wide text-white/90">Dodaj</div>
-                <div className="mt-1 text-4xl  font-extrabold">ALUMINIUM</div>
+                <div className="mt-1 text-4xl font-extrabold">ALUMINIUM</div>
                 <div className="mt-2 text-3xl text-white/95 tabular-nums">({counts.ALU || 0})</div>
               </div>
             </div>
@@ -372,48 +361,47 @@ export default function PosPage() {
         </div>
       </section>
 
-      {/* FOOTER – total + akcje pomocnicze */}
- <footer className="relative z-10 px-4 md:px-6 mt-6 pb-8">
-  <div
-    className="
-      mx-auto max-w-5xl rounded-2xl border border-white/10 bg-neutral-900/60 backdrop-blur-md shadow-2xl
-      px-5 md:px-8 py-4
-      grid grid-cols-1 gap-3
-      sm:grid-cols-2 sm:items-center sm:gap-4
-      md:flex md:items-center md:justify-between
-    "
-  >
-    <div className="font-semibold text-center sm:text-left">
-      Dziś razem: <span className="tabular-nums">{events.length}</span>
-    </div>
+      {/* FOOTER – total + azioni */}
+      <footer className="relative z-10 px-4 md:px-6 mt-6 pb-8">
+        <div
+          className="
+            mx-auto max-w-5xl rounded-2xl border border-white/10 bg-neutral-900/60 backdrop-blur-md shadow-2xl
+            px-5 md:px-8 py-4
+            grid grid-cols-1 gap-3
+            sm:grid-cols-2 sm:items-center sm:gap-4
+            md:flex md:items-center md:justify-between
+          "
+        >
+          <div className="font-semibold text-center sm:text-left">
+            Dziś razem: <span className="tabular-nums">{events.length}</span>
+          </div>
 
-    <div className="flex flex-wrap justify-center sm:justify-end items-center gap-2 sm:gap-3">
-      <button
-        onClick={() => pullFromServer(session.shopId)}
-        className="rounded-xl px-4 py-2 text-xs md:text-sm font-semibold border border-white/10 bg-black/40 hover:bg-black/60"
-        title="Pobierz najnowsze dane z serwera"
-      >
-        Odśwież
-      </button>
+          <div className="flex flex-wrap justify-center sm:justify-end items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => session && pullFromServer(session.shopId)}
+              className="rounded-xl px-4 py-2 text-xs md:text-sm font-semibold border border-white/10 bg-black/40 hover:bg-black/60"
+              title="Pobierz najnowsze dane z serwera"
+            >
+              Odśwież
+            </button>
 
-      <button
-        onClick={handleSync}
-        disabled={syncing}
-        className="rounded-xl px-4 py-2 text-xs md:text-sm font-semibold bg-white text-black hover:bg-neutral-200 active:scale-[.99] transition disabled:opacity-50"
-      >
-        {syncing ? 'Synchronizacja…' : 'Synchronizuj'}
-      </button>
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="rounded-xl px-4 py-2 text-xs md:text-sm font-semibold bg-white text-black hover:bg-neutral-200 active:scale-[.99] transition disabled:opacity-50"
+            >
+              {syncing ? 'Synchronizacja…' : 'Synchronizuj'}
+            </button>
 
-      <button
-        onClick={handleClear}
-        className="rounded-xl px-4 py-2 text-xs md:text-sm font-semibold text-rose-300 hover:text-rose-200 underline underline-offset-4"
-      >
-        Wyczyść dzisiaj
-      </button>
-    </div>
-  </div>
-</footer>
-
+            <button
+              onClick={handleClear}
+              className="rounded-xl px-4 py-2 text-xs md:text-sm font-semibold text-rose-300 hover:text-rose-200 underline underline-offset-4"
+            >
+              Wyczyść dzisiaj
+            </button>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
