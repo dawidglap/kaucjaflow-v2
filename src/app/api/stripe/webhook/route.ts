@@ -19,16 +19,15 @@ async function getDb() {
     return { users: db.collection('users') };
 }
 
-// attivo se sub è active/trialing/past_due (grace)
+// active if sub is active/trialing/past_due (grace)
 function activeFromStatus(status?: Stripe.Subscription.Status | null) {
     return status === 'active' || status === 'trialing' || status === 'past_due';
 }
 
-// snapshot metadati utili (compat tipizzata)
+// snapshot metadata (loose read for current_period_end)
 function subSnapshot(s: Stripe.Subscription | null | undefined) {
     if (!s) return {};
     const price = s.items?.data?.[0]?.price?.id;
-    // con i tipi nuovi leggiamo current_period_end in modo “loose”
     const periodEndUnix = (s as any)?.current_period_end as number | undefined;
 
     return {
@@ -40,7 +39,7 @@ function subSnapshot(s: Stripe.Subscription | null | undefined) {
 }
 
 export async function POST(req: Request) {
-    // 1) verifica firma
+    // verify signature
     const body = Buffer.from(await req.arrayBuffer());
     const sig = req.headers.get('stripe-signature') || '';
     let event: Stripe.Event;
@@ -56,7 +55,7 @@ export async function POST(req: Request) {
         case 'checkout.session.completed': {
             const s = event.data.object as Stripe.Checkout.Session;
 
-            // Email dal checkout / customer (type-safe)
+            // Email from checkout or customer (type-safe + loose unwrap)
             let email: string | null =
                 s.customer_details?.email ||
                 s.customer_email ||
@@ -65,28 +64,22 @@ export async function POST(req: Request) {
             if (!email && typeof s.customer === 'string') {
                 try {
                     const custResp = await stripe.customers.retrieve(s.customer);
-                    // unwrap Response<T> safely
-                    const cust: any = custResp as any;
-
-                    // If it's a DeletedCustomer, it will have { deleted: true }
+                    const cust: any = custResp as any; // unwrap Response<T>
                     if (cust && cust.deleted === true) {
-                        // deleted, no email available
                         email = null;
                     } else {
                         email = (cust as Stripe.Customer).email ?? null;
                     }
                 } catch {
-                    // ignore – leave email as null
+                    // ignore
                 }
             }
-
 
             const subscriptionId =
                 typeof s.subscription === 'string' ? s.subscription : s.subscription?.id;
             const customerId =
                 typeof s.customer === 'string' ? s.customer : s.customer?.id;
 
-            // prova a leggere la sub per snapshot
             let sub: Stripe.Subscription | undefined;
             if (subscriptionId) {
                 try {
@@ -100,7 +93,7 @@ export async function POST(req: Request) {
                     {
                         $set: {
                             email: email.toLowerCase(),
-                            active: true, // in genere trialing dopo checkout
+                            active: true, // after checkout, usually 'trialing'
                             stripeCustomerId: customerId,
                             stripeSubscriptionId: subscriptionId,
                             updatedAt: new Date(),
@@ -116,8 +109,11 @@ export async function POST(req: Request) {
 
         case 'invoice.payment_succeeded': {
             const inv = event.data.object as Stripe.Invoice;
-            const subId =
-                typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id;
+            // In this type set, subscription isn't exposed; read loosely.
+            const invSub: any = (inv as any).subscription;
+            const subId: string | undefined =
+                typeof invSub === 'string' ? invSub : invSub?.id;
+
             if (subId) {
                 let sub: Stripe.Subscription | undefined;
                 try {
@@ -133,8 +129,10 @@ export async function POST(req: Request) {
 
         case 'invoice.payment_failed': {
             const inv = event.data.object as Stripe.Invoice;
-            const subId =
-                typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id;
+            const invSub: any = (inv as any).subscription;
+            const subId: string | undefined =
+                typeof invSub === 'string' ? invSub : invSub?.id;
+
             if (subId) {
                 let sub: Stripe.Subscription | undefined;
                 try {
