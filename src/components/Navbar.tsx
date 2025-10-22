@@ -31,10 +31,30 @@ export default function Navbar({
     >
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         {/* Logo */}
-        <Link href="/" className="inline-flex items-center gap-2">
-          {/* Sostituisci width/height in base al tuo asset */}
-          <Image src={logoSrc} alt={logoAlt} width={120} height={28} priority />
-        </Link>
+      {/* logo (swap automatico con dark mode) */}
+<Link href="/" className="inline-flex items-center gap-3" aria-label="KaucjaFlow — Strona główna">
+  <span className="relative block h-6 w-[132px]">
+    {/* Light mode */}
+    <Image
+      src="/images/logo-light.png"
+      alt="KaucjaFlow"
+      fill
+      sizes="132px"
+      className="object-contain block dark:hidden"
+      priority
+    />
+    {/* Dark mode */}
+    <Image
+      src="/images/logo-dark.png"
+      alt="KaucjaFlow"
+      fill
+      sizes="132px"
+      className="object-contain hidden dark:block"
+      priority
+    />
+  </span>
+</Link>
+
 
         {/* Desktop nav */}
         <div className="hidden items-center gap-6 md:flex">

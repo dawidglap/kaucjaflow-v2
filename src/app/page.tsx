@@ -35,8 +35,8 @@ export default function Home() {
         <Pricing />
         <FAQ />
         <CTASection />
-        <GrowthPlan />
-        <ColdScript />
+        {/* <GrowthPlan /> */}
+        {/* <ColdScript /> */}
         <Guarantee />
         <LegalFooter />
       </main>
