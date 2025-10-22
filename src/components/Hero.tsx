@@ -16,12 +16,13 @@ export type HeroProps = {
 };
 
 export default function Hero({
-  badge = 'GRATIS do 31.12.2025',
-  title = 'Zarabiaj czas, nie papierologię.',
-  subtitle = 'Najprostszy sposób, by Twój sklep ogarnął kaucje (PET • PUSZKA • SZKŁO) bez chaosu.',
-  ctaLabel = 'Załóż darmowe konto',
+badge="⚡ Od 1.10.2025 — zero czasu na błędy",
+title="Kaucje wchodzą. Twój sklep musi działać szybko — albo utknie w chaosie.",
+subtitle="Przygotuj kasjerów w 10 minut. Bez POS-ów, bez papierów, bez stresu.",
+ctaLabel="Załóż darmowe konto →",
+secondary="Już 300+ sklepów działa z KaucjaFlow. Nie czekaj do ostatniej chwili.",
+
   ctaHref = '/login',
-  secondary = 'Od 01.01.2026 — 29 PLN/mies. (mniej niż 1 PLN dziennie).',
   className,
 }: HeroProps) {
   const prefersReduce = useReducedMotion();
