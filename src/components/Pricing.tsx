@@ -30,7 +30,7 @@ export default function Pricing({
   callTitle = 'Umów rozmowę',
   callSubtitle = '15-minutowa darmowa konsultacja z zespołem.',
   callHref = 'https://cal.com/kaucjaflow/start',
-  callAvatarSrc = '/images/avatar.webp',
+  callAvatarSrc = '/images/avatar.png',
   className,
 }: PricingProps) {
   const prefersReduce = useReducedMotion();
