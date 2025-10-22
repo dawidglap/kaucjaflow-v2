@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion, type MotionProps } from 'framer-motion';
 
 export type HeroProps = {
   badge?: string;
@@ -25,15 +25,12 @@ export default function Hero({
 }: HeroProps) {
   const prefersReduce = useReducedMotion();
 
-  // Animations
-  const fadeUp = {
-    hidden: { opacity: 0, y: prefersReduce ? 0 : 12 },
-    show: (i = 0) => ({
-      opacity: 1,
-      y: 0,
-      transition: { delay: 0.06 * i, duration: 0.5, ease: 'easeOut' },
-    }),
-  };
+  // Helper tipizzato: niente "ease", y sempre presente
+  const fade = (i = 0): MotionProps => ({
+    initial: { opacity: 0, y: prefersReduce ? 0 : 12 },
+    animate: { opacity: 1, y: 0 },
+    transition: { delay: 0.06 * i, duration: prefersReduce ? 0.35 : 0.5 },
+  });
 
   return (
     <section
@@ -77,10 +74,7 @@ export default function Hero({
           {/* Badge */}
           <motion.div
             className="mb-5 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/70 px-3 py-1 text-xs font-medium text-gray-800 backdrop-blur-md dark:border-white/15 dark:bg-white/10 dark:text-gray-100"
-            variants={fadeUp}
-            initial="hidden"
-            animate="show"
-            custom={0}
+            {...fade(0)}
           >
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
             {badge}
@@ -90,10 +84,7 @@ export default function Hero({
           <motion.h1
             id="hero-title"
             className="text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl"
-            variants={fadeUp}
-            initial="hidden"
-            animate="show"
-            custom={1}
+            {...fade(1)}
           >
             {title}
           </motion.h1>
@@ -101,10 +92,7 @@ export default function Hero({
           {/* Sub */}
           <motion.p
             className="mt-4 max-w-2xl text-pretty text-base text-gray-700 dark:text-gray-300 sm:text-lg"
-            variants={fadeUp}
-            initial="hidden"
-            animate="show"
-            custom={2}
+            {...fade(2)}
           >
             {subtitle}
           </motion.p>
@@ -112,10 +100,7 @@ export default function Hero({
           {/* CTA */}
           <motion.div
             className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center"
-            variants={fadeUp}
-            initial="hidden"
-            animate="show"
-            custom={3}
+            {...fade(3)}
           >
             <Link
               href={ctaHref}
@@ -132,10 +117,7 @@ export default function Hero({
           {/* Micro-stats */}
           <motion.ul
             className="mt-10 grid max-w-3xl grid-cols-2 gap-3 text-sm text-gray-600 dark:text-gray-300 sm:grid-cols-3"
-            variants={fadeUp}
-            initial="hidden"
-            animate="show"
-            custom={4}
+            {...fade(4)}
           >
             <li className="rounded-lg border border-black/10 bg-white/60 px-3 py-2 backdrop-blur dark:border-white/15 dark:bg-white/10">
               <span className="font-semibold text-gray-900 dark:text-gray-100">Offline-first</span>

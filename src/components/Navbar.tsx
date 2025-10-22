@@ -19,7 +19,7 @@ const NAV_ITEMS = [
 ];
 
 export default function Navbar({
-  logoSrc = '/logo.svg',
+  logoSrc = '/images/logo.png',
   logoAlt = 'KaucjaFlow',
   className,
 }: NavbarProps) {
@@ -55,12 +55,12 @@ export default function Navbar({
             >
               Zaloguj się
             </Link>
-            <Link
+            {/* <Link
               href="/login"
               className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90 dark:bg-white dark:text-black"
             >
               Załóż konto
-            </Link>
+            </Link> */}
           </div>
         </div>
 
@@ -97,13 +97,13 @@ export default function Navbar({
               >
                 Zaloguj się
               </Link>
-              <Link
+              {/* <Link
                 href="/login"
                 onClick={() => setOpen(false)}
                 className="rounded-md bg-black px-3 py-2 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-black"
               >
                 Załóż konto
-              </Link>
+              </Link> */}
             </div>
           </div>
         </div>
