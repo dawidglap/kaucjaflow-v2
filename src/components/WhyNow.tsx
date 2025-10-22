@@ -7,22 +7,22 @@ import { CalendarDays, Play } from 'lucide-react';
 export type WhyNowProps = {
   startDate?: string;
   bullets?: string[];
-  /** Poster 16:9 (desktop) */
+  /** Poster 16:9 (desktop) – es. /images/kaucjaflow-poster-16x9.jpg */
   posterSrc?: string;
-  /** Poster 9:16 (mobile/portrait) */
+  /** Poster 9:16 (mobile/portrait) – es. /images/kaucjaflow-poster-9x16.jpg */
   posterVerticalSrc?: string;
-  /** Wideo 16:9 */
+  /** Video 16:9 – es. /videos/kaucjaflow.mp4 */
   videoSrc?: string;
-  /** Wideo 9:16 (mobile/portrait) */
+  /** Video 9:16 – es. /videos/kaucjaflow-vertical.mp4 */
   verticalVideoSrc?: string;
-  /** Próg width dla trybu „mobile” (px) */
+  /** Soglia width per “mobile” (px) */
   mobileBreakpoint?: number;
-  /** Wymuś video pionowe tylko po orientacji (ignoruj breakpoint) */
+  /** Se true, usa SOLO l’orientamento (ignora breakpoint) */
   verticalByOrientationOnly?: boolean;
   className?: string;
 };
 
-/** prosty hook: portret vs landscape + szerokość */
+/** Hook semplice: ritrova width + orientamento */
 function useViewport(mobileBreakpoint = 768) {
   const [state, setState] = useState(() => {
     if (typeof window === 'undefined') return { width: 1200, portrait: false };
@@ -42,7 +42,6 @@ function useViewport(mobileBreakpoint = 768) {
 
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
-    // w niektórych przeglądarkach orientationchange nie wystarczy
     const mql = window.matchMedia?.('(orientation: portrait)');
     const onMql = () => onResize();
     mql?.addEventListener?.('change', onMql);
@@ -66,8 +65,8 @@ export default function WhyNow({
     'Klienci oddają opakowania tu i teraz — liczy się szybkość obsługi.',
     'Okres przejściowy do 31.12.2025 — idealny moment na wdrożenie prostego procesu.',
   ],
-  posterSrc,
-  posterVerticalSrc,
+  posterSrc = '/images/kaucjaflow-poster-16x9.jpg',
+  posterVerticalSrc = '/images/kaucjaflow-poster-9x16.jpg',
   videoSrc = '/videos/kaucjaflow.mp4',
   verticalVideoSrc = '/videos/kaucjaflow-vertical.mp4',
   mobileBreakpoint = 768,
@@ -76,8 +75,7 @@ export default function WhyNow({
 }: WhyNowProps) {
   const prefersReduce = useReducedMotion();
   const { isMobileWidth, portrait } = useViewport(mobileBreakpoint);
-
-  const useVertical = verticalByOrientationOnly ? portrait : (portrait || isMobileWidth);
+  const useVertical = verticalByOrientationOnly ? portrait : portrait || isMobileWidth;
 
   const fade = (i = 0): MotionProps => ({
     initial: { opacity: 0, y: prefersReduce ? 0 : 12 },
@@ -85,20 +83,16 @@ export default function WhyNow({
     transition: { delay: 0.06 * i, duration: prefersReduce ? 0.35 : 0.5 },
   });
 
-  // wybór źródeł i posterów
-  const { src, poster, aspectClass } = useMemo(() => {
+  const { src, poster } = useMemo(() => {
     if (useVertical) {
       return {
         src: verticalVideoSrc ?? videoSrc,
         poster: posterVerticalSrc ?? posterSrc,
-        // wymaga pluginu aspect-ratio; jeśli nie masz, zamień klasę na styl inline
-        aspectClass: 'aspect-[9/16]',
       };
     }
     return {
       src: videoSrc,
       poster: posterSrc,
-      aspectClass: 'aspect-video',
     };
   }, [useVertical, videoSrc, verticalVideoSrc, posterSrc, posterVerticalSrc]);
 
@@ -151,24 +145,29 @@ export default function WhyNow({
         >
           <figure className="relative">
             <div className="relative w-full">
-              <div className={aspectClass}>
+              {/* ratio inline: zero dipendenza dal plugin aspect-ratio */}
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  paddingTop: useVertical ? '177.78%' /* 9/16 */ : '56.25%' /* 16/9 */,
+                }}
+              >
                 <video
-                  className="h-full w-full"
-                  key={src}              // 🔁 zmusza do przeładowania przy zmianie orientacji
+                  key={src + (useVertical ? '-v' : '-h')}   /* forza re-render allo switch */
+                  src={src}                                  /* src diretto = poster affidabile in Safari */
+                  className="absolute inset-0 h-full w-full"
                   controls
                   playsInline
-                  preload="metadata"
+                  preload="none"                             /* mostra il poster subito */
                   poster={poster}
                   aria-label="Dlaczego teraz? — wideo wyjaśniające KaucjaFlow"
                   controlsList="nodownload noplaybackrate"
-                >
-                  <source src={src} type="video/mp4" />
-                  Twoja przeglądarka nie obsługuje wideo HTML5.
-                </video>
+                />
               </div>
             </div>
 
-            {/* Ikona play overlay (dekor) */}
+            {/* Ikona play overlay (decorativa) */}
             <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="rounded-full border border-white/40 bg-black/20 p-3 backdrop-blur-sm opacity-0 transition-opacity duration-300 hover:opacity-100">
                 <Play className="h-6 w-6 text-white" />
