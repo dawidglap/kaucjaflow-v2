@@ -84,17 +84,28 @@ export default function LoginPage() {
 
       {/* LOGO w lewym górnym rogu – poza kartą */}
       <div className="absolute top-6 left-6 z-20">
-        <Link href="/" className="inline-flex items-center gap-3">
-          <Image
-            src="/images/logo.png"
-            alt="KaucjaFlow — panel partnera"
-            width={160}
-            height={48}
-            className="rounded-md object-contain drop-shadow"
-            priority
-          />
-          {/* <span className="sr-only">Wróć na stronę główną</span> */}
-        </Link>
+  <Link href="/" className="inline-flex items-center gap-3" aria-label="KaucjaFlow — Strona główna">
+  <span className="relative block h-6 w-[132px]">
+    {/* Light mode */}
+    <Image
+      src="/images/logo-light.png"
+      alt="KaucjaFlow"
+      fill
+      sizes="132px"
+      className="object-contain block dark:hidden"
+      priority
+    />
+    {/* Dark mode */}
+    <Image
+      src="/images/logo-dark.png"
+      alt="KaucjaFlow"
+      fill
+      sizes="132px"
+      className="object-contain hidden dark:block"
+      priority
+    />
+  </span>
+</Link>
       </div>
 
       {/* Link powrotny (mobilny) */}
