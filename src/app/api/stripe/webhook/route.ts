@@ -2,6 +2,148 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { MongoClient } from 'mongodb';
+import { Resend } from 'resend';
+
+const APP_BASE_URL =
+    process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://partners.kaucjaflow.pl';
+const EMAIL_LOGO_URL =
+    process.env.EMAIL_LOGO_URL || `${APP_BASE_URL}/images/logo-email.png`;
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+
+function fmtDate(d?: Date | null) {
+    if (!d) return null;
+    try {
+        return d.toLocaleDateString('pl-PL', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch {
+        return d.toISOString().slice(0, 10);
+    }
+}
+
+function renderWelcomeEmail(loginUrl: string, trialEnd?: Date | null) {
+    const preheader =
+        'Witamy w KaucjaFlow! Dostęp jest aktywny. Zaloguj się jednym kliknięciem.';
+    const trialInfo = trialEnd ? `Darmowy okres trwa do <strong>${fmtDate(trialEnd)}</strong>.` : '';
+    return `<!doctype html>
+<html lang="pl" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>KaucjaFlow – witamy!</title>
+  <style>
+    @media (max-width: 600px) {
+      .container { width: 100% !important; }
+      .btn { width: 100% !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f6f7f9;">
+  <div style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0;color:transparent;">
+    ${preheader}
+  </div>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f6f7f9;padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" class="container" style="width:600px;max-width:100%;">
+          <tr>
+            <td style="padding:16px 24px;text-align:left;">
+              <img src="${EMAIL_LOGO_URL}" width="160" height="48" alt="KaucjaFlow" style="display:block;height:auto;border:0;outline:none;text-decoration:none;">
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 24px 24px 24px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#ffffff;border-radius:12px;border:1px solid #e7e8eb;">
+                <tr>
+                  <td style="padding:28px 24px 8px 24px;text-align:left;">
+                    <h1 style="margin:0;font-size:20px;line-height:28px;color:#0f1720;font-weight:700;">Witamy w KaucjaFlow 🎉</h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 24px 16px 24px;text-align:left;">
+                    <p style="margin:0;font-size:14px;line-height:20px;color:#48505e;">
+                      Dostęp został aktywowany. Zaloguj się, aby rozpocząć pracę kasjerów i generować raporty. ${trialInfo}
+                    </p>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:8px 24px 8px 24px;text-align:left;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="btn" style="border-collapse:separate;">
+                      <tr>
+                        <td align="center" bgcolor="#111111" style="border-radius:10px;">
+                          <a href="${loginUrl}" target="_blank" rel="noopener noreferrer"
+                            style="display:inline-block;padding:12px 20px;font-size:14px;line-height:20px;color:#ffffff;text-decoration:none;font-weight:600;border-radius:10px;background:#111111;">
+                            Zaloguj się
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:8px 24px 8px 24px;text-align:left;">
+                    <p style="margin:0;font-size:12px;line-height:18px;color:#6b7280;">
+                      Tip: użyj adresu e-mail z zakupu i wybierz „Wyślij magic link”. Jeśli aktywacja nie pojawi się od razu, poczekaj chwilę — potwierdzenie przychodzi przez webhook Stripe.
+                    </p>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:8px 24px 0 24px;"><hr style="border:none;border-top:1px solid #eceff3;margin:0;"></td>
+                </tr>
+
+                <tr>
+                  <td style="padding:12px 24px 20px 24px;text-align:left;">
+                    <p style="margin:0;font-size:12px;line-height:18px;color:#6b7280;">
+                      Potrzebujesz pomocy? Napisz do nas: <a href="mailto:support@kaucjaflow.pl" style="color:#0b57d0;text-decoration:underline;">support@kaucjaflow.pl</a>.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 24px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:transparent;">
+                <tr>
+                  <td style="padding:8px 0 0 0;text-align:left;">
+                    <p style="margin:0;font-size:11px;line-height:16px;color:#7b818a;">
+                      Ta wiadomość ma charakter transakcyjny. Dziękujemy za zaufanie!
+                    </p>
+                  </td>
+                </tr>
+                <tr><td style="height:8px;"></td></tr>
+              </table>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function renderWelcomeText(loginUrl: string, trialEnd?: Date | null) {
+    return [
+        'Witamy w KaucjaFlow!',
+        '',
+        'Dostęp został aktywowany. Zaloguj się pod poniższym adresem:',
+        loginUrl,
+        '',
+        trialEnd ? `Darmowy okres trwa do: ${fmtDate(trialEnd)}.` : '',
+        '',
+        'Użyj adresu e-mail z zakupu i wybierz „Wyślij magic link”.',
+        '',
+        'Kontakt: support@kaucjaflow.pl',
+    ].filter(Boolean).join('\n');
+}
+
 
 export const runtime = 'nodejs';
 
@@ -61,19 +203,31 @@ export async function POST(req: Request) {
                 s.customer_email ||
                 null;
 
-            if (!email && typeof s.customer === 'string') {
+            // ...dopo l'upsert su users
+            if (email && RESEND_API_KEY) {
                 try {
-                    const custResp = await stripe.customers.retrieve(s.customer);
-                    const cust: any = custResp as any; // unwrap Response<T>
-                    if (cust && cust.deleted === true) {
-                        email = null;
-                    } else {
-                        email = (cust as Stripe.Customer).email ?? null;
+                    const resend = new Resend(RESEND_API_KEY);
+
+                    // prova a dedurre data fine trial
+                    let trialEndDate: Date | null = null;
+                    if (sub && (sub as any)?.trial_end) {
+                        const unix = Number((sub as any).trial_end);
+                        if (!Number.isNaN(unix)) trialEndDate = new Date(unix * 1000);
                     }
-                } catch {
-                    // ignore
+
+                    await resend.emails.send({
+                        from: 'KaucjaFlow <welcome@kaucjaflow.pl>',
+                        to: [email],
+                        subject: 'Witamy w KaucjaFlow – dostęp aktywny',
+                        html: renderWelcomeEmail(`${APP_BASE_URL}/login`, trialEndDate),
+                        text: renderWelcomeText(`${APP_BASE_URL}/login`, trialEndDate),
+                        headers: { 'X-KF-Event': 'checkout.session.completed' },
+                    });
+                } catch (e) {
+                    console.error('[WELCOME EMAIL ERROR]', e);
                 }
             }
+
 
             const subscriptionId =
                 typeof s.subscription === 'string' ? s.subscription : s.subscription?.id;

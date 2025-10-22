@@ -3,10 +3,13 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Menu, X } from 'lucide-react';
 
-export type NavbarProps = {
-  logoSrc?: string;
+export type LegalFooterProps = {
+  /** Testo legale mostrato in basso. Puoi passarlo per override. */
+  text?: string;
+  /** Percorsi logo per light/dark mode (facoltativi). */
+  logoLightSrc?: string;
+  logoDarkSrc?: string;
   className?: string;
 };
 
@@ -20,123 +23,152 @@ const LINKS = [
   { href: '#cta', label: 'Start' },
 ];
 
-export default function Navbar({ logoSrc = '/images/logo.png', className }: NavbarProps) {
-  const [open, setOpen] = React.useState(false);
-  const [scrolled, setScrolled] = React.useState(false);
+const DEFAULT_TEXT =
+  'Zakres i stawki: PET/puszka 0,50 zł; szkło wielokrotne 1,00 zł. Start 1.10.2025; okres przejściowy do 31.12.2025. ' +
+  'Brak jednej „państwowej apki” — działają operatorzy z zezwoleniami. KaucjaFlow wspiera proces kasowy i raporty sklepu.';
 
-  React.useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 4);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  React.useEffect(() => {
-    // close on route/hash change
-    const onHash = () => setOpen(false);
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+export default function LegalFooter({
+  text = DEFAULT_TEXT,
+  logoLightSrc = '/images/logo-light.png',
+  logoDarkSrc = '/images/logo-dark.png',
+  className,
+}: LegalFooterProps) {
+  const year = new Date().getFullYear();
 
   return (
-    <header
+    <footer
       className={[
-        'sticky top-0 z-50 w-full',
-        'backdrop-blur supports-[backdrop-filter]:bg-white/65 dark:supports-[backdrop-filter]:bg-black/40',
-        'border-b border-transparent',
-        scrolled ? 'border-black/10 shadow-sm dark:border-white/10' : '',
+        'w-full border-t border-black/10 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/70',
+        'dark:border-white/10 dark:bg-black/60 dark:supports-[backdrop-filter]:bg-black/50',
         className || '',
       ].join(' ')}
-      data-scrolled={scrolled ? 'true' : 'false'}
+      aria-label="Stopka serwisu"
     >
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4 sm:h-16">
-        {/* logo */}
-       {/* logo (swap automatico con dark mode) */}
-<Link href="/" className="inline-flex items-center gap-3" aria-label="KaucjaFlow — Strona główna">
-  <span className="relative block h-6 w-[132px]">
-    {/* Light mode */}
-    <Image
-      src="/images/logo-light.png"
-      alt="KaucjaFlow"
-      fill
-      sizes="132px"
-      className="object-contain block dark:hidden"
-      priority
-    />
-    {/* Dark mode */}
-    <Image
-      src="/images/logo-dark.png"
-      alt="KaucjaFlow"
-      fill
-      sizes="132px"
-      className="object-contain hidden dark:block"
-      priority
-    />
-  </span>
-</Link>
-
-
-        {/* desktop nav */}
-        <nav className="hidden items-center gap-6 md:flex">
-          {LINKS.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              className="text-sm text-gray-800 transition-colors hover:text-black dark:text-gray-200 dark:hover:text-white"
-            >
-              {l.label}
-            </a>
-          ))}
-
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-black"
-            >
-              Zaloguj się
-            </Link>
-        </nav>
-
-        {/* mobile toggle */}
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="inline-flex items-center justify-center rounded-md p-2 md:hidden"
-          aria-label="Menu"
-          aria-expanded={open}
-          aria-controls="mobile-nav"
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
-      </div>
-
-      {/* mobile nav drawer */}
-      <div
-        id="mobile-nav"
-        className={[
-          'md:hidden transition-[max-height,opacity] duration-200 ease-out overflow-hidden',
-          open ? 'max-h-[360px] opacity-100' : 'max-h-0 opacity-0',
-        ].join(' ')}
-      >
-        <nav className="mx-auto grid w-full max-w-6xl gap-1 px-4 pb-4">
-          {LINKS.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              onClick={() => setOpen(false)}
-              className="rounded-lg px-3 py-2 text-sm text-gray-800 hover:bg-black/5 dark:text-gray-200 dark:hover:bg-white/10"
-            >
-              {l.label}
-            </a>
-          ))}
-          <Link
-            href="/login"
-            onClick={() => setOpen(false)}
-            className="mt-1 inline-flex items-center justify-center rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-black"
-          >
-            Zaloguj się
+      {/* Top */}
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 px-4 py-10 md:grid-cols-12">
+        {/* Brand + short copy */}
+        <div className="md:col-span-5 lg:col-span-4">
+          <Link href="/" className="inline-flex items-center gap-3" aria-label="KaucjaFlow — Strona główna">
+            <span className="relative block h-7 w-[160px]">
+              {/* Light mode */}
+              <Image
+                src={logoLightSrc}
+                alt="KaucjaFlow"
+                fill
+                sizes="160px"
+                className="block object-contain dark:hidden"
+                priority
+              />
+              {/* Dark mode */}
+              <Image
+                src={logoDarkSrc}
+                alt="KaucjaFlow"
+                fill
+                sizes="160px"
+                className="hidden object-contain dark:block"
+                priority
+              />
+            </span>
           </Link>
+          <p className="mt-4 max-w-prose text-sm text-gray-700 dark:text-gray-300">
+            Szybkie i proste rozliczanie kaucji w małych sklepach. Bez POS-ów, bez papierów, bez stresu.
+          </p>
+        </div>
+
+        {/* Navigation columns */}
+        <nav className="md:col-span-7 lg:col-span-8">
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4">
+            <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-900 dark:text-gray-100">
+                Nawigacja
+              </h3>
+              <ul className="space-y-1">
+                {LINKS.slice(0, 4).map((l) => (
+                  <li key={l.href}>
+                    <a
+                      href={l.href}
+                      className="text-sm text-gray-800 transition-colors hover:text-black dark:text-gray-200 dark:hover:text-white"
+                    >
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-900 dark:text-gray-100">
+                Oferta
+              </h3>
+              <ul className="space-y-1">
+                {LINKS.slice(4).map((l) => (
+                  <li key={l.href}>
+                    <a
+                      href={l.href}
+                      className="text-sm text-gray-800 transition-colors hover:text-black dark:text-gray-200 dark:hover:text-white"
+                    >
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-900 dark:text-gray-100">
+                Konto
+              </h3>
+              <ul className="space-y-1">
+                <li>
+                  <Link
+                    href="/login"
+                    className="text-sm text-gray-800 transition-colors hover:text-black dark:text-gray-200 dark:hover:text-white"
+                  >
+                    Zaloguj się
+                  </Link>
+                </li>
+                <li>
+                  <a
+                    href="/register"
+                    className="text-sm text-gray-800 transition-colors hover:text-black dark:text-gray-200 dark:hover:text-white"
+                  >
+                    Załóż konto
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-900 dark:text-gray-100">
+                Kontakt
+              </h3>
+              <ul className="space-y-1">
+                <li>
+                  <a
+                    href="mailto:support@kaucjaflow.pl"
+                    className="text-sm text-gray-800 transition-colors hover:text-black dark:text-gray-200 dark:hover:text-white"
+                  >
+                    support@kaucjaflow.pl
+                  </a>
+                </li>
+                <li>
+               
+                </li>
+              </ul>
+            </div>
+          </div>
         </nav>
       </div>
-    </header>
+
+      {/* Legal strip */}
+      <div className="border-t border-black/10 bg-white/70 dark:border-white/10 dark:bg-black/50">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-gray-700 dark:text-gray-300">{text}</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400">
+            © {year} KaucjaFlow. Wszelkie prawa zastrzeżone.
+          </p>
+        </div>
+      </div>
+    </footer>
   );
 }
