@@ -2,13 +2,13 @@ import "./globals.css";
 import Script from "next/script";
 import type { Metadata } from "next";
 
-const siteName = "KaucjaFlow – system kaucji dla wszystkich.";
+const siteName = "KaucjaFlow – system kaucji dla wszystkich";
 const baseUrl  = "https://partners.kaucjaflow.pl";
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
   title: {
-    default: "KaucjaFlow — proste rozliczanie kaucji dla wszystkich.",
+    default: "KaucjaFlow — proste rozliczanie kaucji dla wszystkich",
     template: "%s | KaucjaFlow",
   },
   description:
@@ -22,18 +22,17 @@ export const metadata: Metadata = {
   publisher: "KaucjaFlow",
   category: "business",
   alternates: {
-    canonical: "./", // canonical relativo al path corrente
+    canonical: "./",
     languages: {
       "pl-PL": "/",
-      "en": "/en",
-      "it": "/it",
+    
     },
   },
   openGraph: {
     type: "website",
     url: baseUrl,
     siteName: "KaucjaFlow",
-    title: "KaucjaFlow — proste rozliczanie kaucji dla wszystkich.",
+    title: "KaucjaFlow — proste rozliczanie kaucji dla wszystkich",
     description:
       "Obsługuj kaucję zgodnie z prawem. Darmowy dostęp do 31.12.2025. Działa na każdym urządzeniu.",
     images: [
@@ -53,8 +52,13 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
-    // segnali extra per serp
-    googleBot: { index: true, follow: true, maxSnippet: -1, maxImagePreview: "large", maxVideoPreview: -1 },
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
   },
   icons: {
     icon: [
